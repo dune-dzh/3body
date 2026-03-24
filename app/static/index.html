@@ -91,6 +91,12 @@
       animation-delay: 0.15s, 1s;
     }
 
+    /* Wrapper has no CSS animations — JS can change opacity/transform every 15s without fighting WAAPI/CSS. */
+    .status-wrap {
+      display: inline-block;
+      vertical-align: bottom;
+    }
+
     .status {
       display: inline-block;
       font-size: 12px;
@@ -100,6 +106,7 @@
       border: 1px solid var(--border);
       background: var(--panel);
       animation: statusBob 16s ease-in-out 1.2s infinite;
+      vertical-align: top;
     }
 
     .status-inner {
@@ -865,11 +872,13 @@
           server and streamed here for visualization — not a closed-form formula (those are rare for n = 3).
         </p>
       </div>
-      <div class="status" id="connStatus" aria-live="polite">
-        <span class="status-inner" id="connStatusInner">
-          <span class="status-dot" id="connDot" aria-hidden="true"></span>
-          <span id="connLabel">Connecting…</span>
-        </span>
+      <div class="status-wrap" id="connStatusWrap">
+        <div class="status" id="connStatus" aria-live="polite">
+          <span class="status-inner">
+            <span class="status-dot" id="connDot" aria-hidden="true"></span>
+            <span id="connLabel">Connecting…</span>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -1220,58 +1229,50 @@
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    const connStatusWrap = document.getElementById("connStatusWrap");
     const STATUS_REPLAY_MS = 15000;
     const ENTRANCE_MS = 800;
     const ENTRANCE_DELAY_MS = 200;
-    let statusIntroAnimation = null;
+    let statusIntroRaf = 0;
     function replayStatusEntrance() {
-      if (!connStatus) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var wrap = connStatusWrap;
+      if (!wrap) return;
 
-      function goTransition() {
-        connStatus.style.transition = "opacity " + ENTRANCE_MS / 1000 + "s ease-out, transform " + ENTRANCE_MS / 1000 + "s ease-out";
-        connStatus.style.opacity = "0";
-        connStatus.style.transform = "translateY(12px)";
-        void connStatus.offsetWidth;
-        window.setTimeout(function () {
-          connStatus.style.opacity = "1";
-          connStatus.style.transform = "translateY(0)";
-        }, ENTRANCE_DELAY_MS);
-        window.setTimeout(function () {
-          connStatus.style.transition = "";
-          connStatus.style.removeProperty("opacity");
-          connStatus.style.removeProperty("transform");
-        }, ENTRANCE_DELAY_MS + ENTRANCE_MS + 80);
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var dur = reduced ? 220 : ENTRANCE_MS;
+      var delay = reduced ? 0 : ENTRANCE_DELAY_MS;
+      var dy = reduced ? 4 : 12;
+
+      if (statusIntroRaf) {
+        cancelAnimationFrame(statusIntroRaf);
+        statusIntroRaf = 0;
       }
 
-      if (typeof connStatus.animate !== "function") {
-        goTransition();
-        return;
+      var startWall = performance.now();
+      function easeOut(t) {
+        return 1 - Math.pow(1 - t, 2.4);
       }
-
-      /* Never call getAnimations().cancel() here: that would kill CSS statusBob / statusRing on this node. */
-      if (statusIntroAnimation) {
-        try {
-          statusIntroAnimation.cancel();
-        } catch (err) {}
-        statusIntroAnimation = null;
-      }
-
-      statusIntroAnimation = connStatus.animate(
-        [
-          { opacity: 0, transform: "translateY(12px)" },
-          { opacity: 1, transform: "translateY(0)" },
-        ],
-        {
-          duration: ENTRANCE_MS,
-          delay: ENTRANCE_DELAY_MS,
-          easing: "ease-out",
-          fill: "both",
+      function tick(now) {
+        var elapsed = now - startWall - delay;
+        if (elapsed < 0) {
+          wrap.style.opacity = "0";
+          wrap.style.transform = "translateY(" + dy + "px)";
+          statusIntroRaf = requestAnimationFrame(tick);
+          return;
         }
-      );
-      statusIntroAnimation.onfinish = function () {
-        statusIntroAnimation = null;
-      };
+        var u = Math.min(1, elapsed / dur);
+        if (u >= 1) {
+          wrap.style.removeProperty("opacity");
+          wrap.style.removeProperty("transform");
+          statusIntroRaf = 0;
+          return;
+        }
+        var e = easeOut(u);
+        wrap.style.opacity = String(e);
+        wrap.style.transform = "translateY(" + dy * (1 - e) + "px)";
+        statusIntroRaf = requestAnimationFrame(tick);
+      }
+      statusIntroRaf = requestAnimationFrame(tick);
     }
 
     requestAnimationFrame(replayStatusEntrance);
