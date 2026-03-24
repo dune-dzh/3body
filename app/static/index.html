@@ -92,18 +92,20 @@
     }
 
     .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      display: inline-block;
       font-size: 12px;
       color: var(--muted);
       padding: 6px 12px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--panel);
-      animation:
-        fadeRise 0.8s ease-out 0.2s both,
-        statusBob 16s ease-in-out 1.2s infinite;
+      animation: statusBob 16s ease-in-out 1.2s infinite;
+    }
+
+    .status-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .status-dot {
@@ -121,15 +123,7 @@
     }
 
     .status.live-pulse {
-      animation:
-        fadeRise 0.8s ease-out 0.2s both,
-        statusRing 3.2s ease-in-out 1.2s infinite;
-    }
-
-    /* JS toggles this for one frame so fadeRise / ring / bob restart from t=0 (inline reset is flaky). */
-    .status.status-anim-reset,
-    .status-dot.status-anim-reset {
-      animation: none !important;
+      animation: statusRing 3.2s ease-in-out 1.2s infinite;
     }
 
     @keyframes statusRing {
@@ -820,6 +814,10 @@
       }
 
       .status {
+        animation: none !important;
+      }
+
+      .status-inner {
         animation: fadeRise 0.8s ease-out 0.2s both !important;
       }
 
@@ -868,8 +866,10 @@
         </p>
       </div>
       <div class="status" id="connStatus" aria-live="polite">
-        <span class="status-dot" id="connDot" aria-hidden="true"></span>
-        <span id="connLabel">Connecting…</span>
+        <span class="status-inner" id="connStatusInner">
+          <span class="status-dot" id="connDot" aria-hidden="true"></span>
+          <span id="connLabel">Connecting…</span>
+        </span>
       </div>
     </div>
 
@@ -1136,6 +1136,7 @@
     const tourDots = document.getElementById("tourDots");
     const tourProgressBar = document.getElementById("tourProgressBar");
     const connStatus = document.getElementById("connStatus");
+    const connStatusInner = document.getElementById("connStatusInner");
     const connDot = document.getElementById("connDot");
     const connLabel = document.getElementById("connLabel");
 
@@ -1221,20 +1222,28 @@
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const STATUS_REPLAY_MS = 15000;
+    const ENTRANCE_MS = 800;
+    const ENTRANCE_DELAY_MS = 200;
     function replayStatusEntrance() {
-      if (reduceMotion || !connStatus) return;
-      connStatus.classList.add("status-anim-reset");
-      if (connDot && connDot.classList.contains("live")) {
-        connDot.classList.add("status-anim-reset");
-      }
-      void connStatus.offsetWidth;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          connStatus.classList.remove("status-anim-reset");
-          if (connDot) connDot.classList.remove("status-anim-reset");
-        });
+      if (reduceMotion || !connStatusInner) return;
+      if (typeof connStatusInner.animate !== "function") return;
+      connStatusInner.getAnimations().forEach(function (a) {
+        a.cancel();
       });
+      connStatusInner.animate(
+        [
+          { opacity: 0, transform: "translateY(6px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        {
+          duration: ENTRANCE_MS,
+          delay: ENTRANCE_DELAY_MS,
+          easing: "ease-out",
+          fill: "forwards",
+        }
+      );
     }
+    requestAnimationFrame(replayStatusEntrance);
     setInterval(replayStatusEntrance, STATUS_REPLAY_MS);
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
