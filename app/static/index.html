@@ -455,47 +455,36 @@
     }
 
     /*
-     * First-variant layout: `panelIn` on the wrap only. Repeating glow lives on `.canvas-ring` so
-     * `overflow: hidden` on the inner plot does not clip `box-shadow` (that bug blocked the loop).
+     * Original right column (v1): outer layer runs `canvasGlow` only — extra padding so `box-shadow`
+     * is not clipped; inner `.canvas-wrap` clips the plot and runs `panelIn` once.
      */
-    .canvas-wrap {
+    .canvas-outer {
       position: relative;
-      border-radius: 12px;
-      overflow: visible;
-      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
-    }
-
-    .canvas-ring {
-      position: absolute;
-      z-index: 0;
-      inset: -3px;
       border-radius: 14px;
-      pointer-events: none;
-      animation: canvasGlow 4s ease-in-out 0.35s infinite alternate;
+      padding: 6px;
+      margin: -6px;
+      animation: canvasGlow 5.5s ease-in-out 0.5s infinite alternate;
     }
 
     @keyframes canvasGlow {
       0% {
         box-shadow:
           0 0 0 1px rgba(42, 58, 92, 0.9),
-          0 0 20px rgba(70, 110, 220, 0.06);
+          0 0 24px rgba(70, 110, 220, 0.07);
       }
       100% {
         box-shadow:
-          0 0 0 1px rgba(120, 160, 255, 0.55),
-          0 0 48px rgba(80, 160, 255, 0.16);
+          0 0 0 1px rgba(100, 140, 255, 0.5),
+          0 0 44px rgba(80, 160, 255, 0.14);
       }
     }
 
-    .canvas-sway {
+    .canvas-wrap {
       position: relative;
-      z-index: 1;
-      display: block;
-      transform-origin: center center;
-      will-change: transform;
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border);
+      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
     }
 
     canvas {
@@ -619,9 +608,9 @@
 
     /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay),
-      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
-      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
+      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay),
+      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay)::before,
+      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -664,21 +653,18 @@
       .legend-item:nth-child(3) { animation-delay: 0.65s !important; }
       .legend-item:nth-child(4) { animation-delay: 0.8s !important; }
 
-      .canvas-wrap {
-        animation-name: panelIn !important;
-        animation-duration: 0.85s !important;
-        animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
-        animation-delay: 0.08s !important;
-        animation-iteration-count: 1 !important;
-        animation-direction: normal !important;
-        animation-fill-mode: both !important;
-      }
-
-      .canvas-ring {
+      .canvas-outer {
         animation: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
         box-shadow:
           0 0 0 1px rgba(42, 58, 92, 0.9),
           0 0 24px rgba(70, 110, 220, 0.07) !important;
+      }
+
+      .canvas-wrap {
+        animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both !important;
+        animation-iteration-count: 1 !important;
       }
     }
   </style>
@@ -770,9 +756,8 @@
         </div>
       </aside>
 
-      <div class="canvas-wrap" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
-        <div class="canvas-ring" aria-hidden="true"></div>
-        <div class="canvas-sway">
+      <div class="canvas-outer" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
+        <div class="canvas-wrap">
           <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
           <div class="canvas-overlay" aria-hidden="true"></div>
         </div>
@@ -836,75 +821,14 @@
     let bodies = [];
     let trails = [[], [], []];
 
-    /** Same model as the server — runs in the browser when WebSocket data is missing so the right-hand sim never “dies” after one frame. */
-    const DEMO_DT = 0.01;
-    const DEMO_BODIES_INIT = [
-      { x: -0.8, y: 0, vx: 0, vy: -0.35, m: 1 },
-      { x: 0.8, y: 0, vx: 0, vy: 0.35, m: 1 },
-      { x: 0, y: 1.1, vx: 0.45, vy: 0, m: 1 },
-    ];
-
-    let demoBodies = DEMO_BODIES_INIT.map(function (b) {
-      return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
-    });
-
-    function resetDemoSimulation() {
-      demoBodies = DEMO_BODIES_INIT.map(function (b) {
-        return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
-      });
-      bodies = [];
-      trails = [[], [], []];
-      displayXY = [];
-    }
-
-    function bodyBroken(b) {
-      return !Number.isFinite(b.x) || !Number.isFinite(b.y);
-    }
-
-    /** First canvas variant: fixed scale around origin (short looping clip, not endless zoom-pan). */
-    const WORLD_SCALE = 210;
-    const TRAIL_MAX = 64;
-    const VIS_CLIP_MS = 4800;
-    let visClipStart = performance.now();
-
     function worldToScreen(x, y) {
+      const scale = 210;
       return {
-        x: canvas.width / 2 + x * WORLD_SCALE,
-        y: canvas.height / 2 - y * WORLD_SCALE,
+        x: canvas.width / 2 + x * scale,
+        y: canvas.height / 2 - y * scale,
       };
     }
 
-    function stepDemoBodies(arr, dt) {
-      const G0 = 1;
-      const eps = 1e-2;
-      const ax = [0, 0, 0];
-      const ay = [0, 0, 0];
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-          if (i === j) continue;
-          const dx = arr[j].x - arr[i].x;
-          const dy = arr[j].y - arr[i].y;
-          const r2 = dx * dx + dy * dy + eps;
-          const invR3 = 1 / (r2 * Math.sqrt(r2));
-          const a = G0 * arr[j].m * invR3;
-          ax[i] += a * dx;
-          ay[i] += a * dy;
-        }
-      }
-      for (let i = 0; i < 3; i++) {
-        arr[i].vx += ax[i] * dt;
-        arr[i].vy += ay[i] * dt;
-        arr[i].x += arr[i].vx * dt;
-        arr[i].y += arr[i].vy * dt;
-      }
-    }
-
-    let lastWsTime = 0;
-    const WS_STALE_MS = 1800;
-
-    function useLiveStream(now) {
-      return lastWsTime > 0 && bodies.length >= 3 && now - lastWsTime < WS_STALE_MS;
-    }
     let tourIndex = 0;
     let tourTimer = null;
 
@@ -994,46 +918,6 @@
 
     tickTourProgress();
 
-    /** Repeating motion for the sim card frame (always rAF; amplitudes are visible, not sub-pixel). */
-    function canvasCardAmbientLoop() {
-      const wrap = document.querySelector(".canvas-wrap");
-      const sway = document.querySelector(".canvas-sway");
-      const sim = document.getElementById("sim");
-      const overlay = document.querySelector(".canvas-overlay");
-      if (!wrap || !sway || !sim) return;
-
-      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const t0 = performance.now();
-
-      function frame(now) {
-        const t = (now - t0) / 1000;
-        const amp = mq.matches ? 0.45 : 1;
-
-        const rot =
-          amp *
-          (Math.sin(t * 0.31) * 2.2 +
-            Math.sin(t * 0.19) * 1.4 +
-            Math.sin(t * 0.47) * -1.1);
-        const sc = 1 + amp * (0.012 * Math.sin(t * 0.27) + 0.008 * Math.sin(t * 0.13));
-        sway.style.transform = "rotate(" + rot + "deg) scale(" + sc + ")";
-
-        /* Border glow: leave to CSS `canvasGlow` on `.canvas-wrap` (inline box-shadow was cancelling the repeat). */
-
-        const bri = 1 + amp * 0.055 * Math.sin(t * 0.51);
-        const sat = 1 + amp * 0.035 * Math.sin(t * 0.37);
-        sim.style.filter = "brightness(" + bri + ") saturate(" + sat + ")";
-
-        if (overlay) {
-          const ov = 0.68 + amp * 0.22 * (0.5 + 0.5 * Math.sin(t * 0.44 * Math.PI * 2));
-          overlay.style.opacity = String(ov);
-        }
-
-        requestAnimationFrame(frame);
-      }
-      requestAnimationFrame(frame);
-    }
-    canvasCardAmbientLoop();
-
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
@@ -1053,53 +937,6 @@
     let pulseT = 0;
 
     function draw() {
-      const now = performance.now();
-      if (!useLiveStream(now)) {
-        for (let k = 0; k < 4; k++) stepDemoBodies(demoBodies, DEMO_DT);
-        bodies = demoBodies.map(function (b) {
-          return { x: b.x, y: b.y, m: b.m };
-        });
-        bodies.forEach(function (b, i) {
-          trails[i].push({ x: b.x, y: b.y });
-          if (trails[i].length > TRAIL_MAX) trails[i].shift();
-        });
-      }
-
-      if (bodies.length >= 3 && bodies.some(bodyBroken)) {
-        resetDemoSimulation();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        return;
-      }
-
-      /* Short repeating “snippet” like the first UI: restart clip on a timer. */
-      if (now - visClipStart >= VIS_CLIP_MS) {
-        visClipStart = now;
-        trails = [[], [], []];
-        if (useLiveStream(now)) {
-          displayXY = [];
-          bodies.forEach(function (b) {
-            displayXY.push({ x: b.x, y: b.y });
-          });
-        } else {
-          resetDemoSimulation();
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          return;
-        }
-      }
-
-      while (displayXY.length < bodies.length) {
-        const b = bodies[displayXY.length];
-        displayXY.push({ x: b.x, y: b.y });
-      }
-      if (displayXY.length > bodies.length) {
-        displayXY.length = bodies.length;
-      }
-
-      bodies.forEach(function (b, i) {
-        displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
-        displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
-      });
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pulseT += 0.04;
 
@@ -1127,16 +964,27 @@
           const alpha = 0.08 + t * 0.82;
           const q0 = tr[p - 1];
           const q1 = tr[p];
-          const s0 = worldToScreen(q0.x, q0.y);
-          const s1 = worldToScreen(q1.x, q1.y);
           ctx.beginPath();
           ctx.lineWidth = 1.45;
           ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha.toFixed(3) + ")";
-          ctx.moveTo(s0.x, s0.y);
-          ctx.lineTo(s1.x, s1.y);
+          ctx.moveTo(q0.x, q0.y);
+          ctx.lineTo(q1.x, q1.y);
           ctx.stroke();
         }
       }
+
+      while (displayXY.length < bodies.length) {
+        const b = bodies[displayXY.length];
+        displayXY.push({ x: b.x, y: b.y });
+      }
+      if (displayXY.length > bodies.length) {
+        displayXY.length = bodies.length;
+      }
+
+      bodies.forEach(function (b, i) {
+        displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
+        displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
+      });
 
       bodies.forEach((b, i) => {
         const px = displayXY[i].x;
@@ -1196,15 +1044,12 @@
         } catch (e) {
           return;
         }
-        const next = data.bodies || [];
-        if (next.length >= 3) {
-          lastWsTime = performance.now();
-          bodies = next;
-          bodies.forEach((b, i) => {
-            trails[i].push({ x: b.x, y: b.y });
-            if (trails[i].length > TRAIL_MAX) trails[i].shift();
-          });
-        }
+        bodies = data.bodies || [];
+        bodies.forEach((b, i) => {
+          const pt = worldToScreen(b.x, b.y);
+          trails[i].push(pt);
+          if (trails[i].length > 500) trails[i].shift();
+        });
       };
     }
 
