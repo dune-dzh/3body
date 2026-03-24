@@ -465,8 +465,10 @@
       border: 1px solid var(--border);
     }
 
+    /* Intro + periodic replay are driven by JS (WAAPI); initial state matches keyframe 0. */
     .canvas-panel-in {
-      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+      opacity: 0;
+      transform: translateY(12px);
     }
 
     .canvas-sway {
@@ -1030,17 +1032,34 @@
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    /** Replays the same intro as first paint: `.canvas-panel-in` panelIn (skipped when reduced motion is on). */
-    if (!reduceMotion) {
-      const panelInEl = document.querySelector(".canvas-panel-in");
-      if (panelInEl) {
-        setInterval(function () {
-          panelInEl.style.animation = "none";
-          void panelInEl.offsetWidth;
-          panelInEl.style.removeProperty("animation");
-        }, 12000);
+    /** Real replay: WAAPI restarts from opacity 0 each time (CSS animation restart is unreliable in browsers). */
+    function playCanvasPanelIntro() {
+      const el = document.querySelector(".canvas-panel-in");
+      if (!el) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        el.style.opacity = "1";
+        el.style.transform = "translateY(0)";
+        return;
       }
+      el.getAnimations().forEach(function (anim) {
+        anim.cancel();
+      });
+      el.animate(
+        [
+          { opacity: 0, transform: "translateY(12px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        {
+          duration: 850,
+          delay: 80,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "forwards",
+        }
+      );
     }
+
+    playCanvasPanelIntro();
+    setInterval(playCanvasPanelIntro, 12000);
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
