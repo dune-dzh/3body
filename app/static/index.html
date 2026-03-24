@@ -463,7 +463,15 @@
       border-radius: 14px;
       padding: 6px;
       margin: -6px;
-      animation: canvasGlow 5.5s ease-in-out 0.5s infinite alternate;
+      transform: translateZ(0);
+      animation-name: canvasGlow;
+      animation-duration: 5.5s;
+      animation-timing-function: ease-in-out;
+      animation-delay: 0.5s;
+      animation-iteration-count: infinite;
+      animation-direction: alternate;
+      animation-fill-mode: none;
+      animation-play-state: running;
     }
 
     @keyframes canvasGlow {
@@ -471,11 +479,13 @@
         box-shadow:
           0 0 0 1px rgba(42, 58, 92, 0.9),
           0 0 24px rgba(70, 110, 220, 0.07);
+        filter: brightness(1);
       }
       100% {
         box-shadow:
           0 0 0 1px rgba(100, 140, 255, 0.5),
           0 0 44px rgba(80, 160, 255, 0.14);
+        filter: brightness(1.06);
       }
     }
 
@@ -484,7 +494,19 @@
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border);
-      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+      animation:
+        panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s forwards,
+        canvasWrapPulse 5.5s ease-in-out 0.95s infinite alternate;
+    }
+
+    /* Repeats after entrance; only border-color so it does not fight panelIn’s opacity/transform. */
+    @keyframes canvasWrapPulse {
+      0% {
+        border-color: #2a3a5c;
+      }
+      100% {
+        border-color: rgba(100, 130, 200, 0.65);
+      }
     }
 
     canvas {
@@ -503,6 +525,123 @@
       border-radius: 12px;
       box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
       opacity: 0.85;
+    }
+
+    .canvas-column {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .canvas-column .canvas-outer {
+      flex-shrink: 0;
+    }
+
+    .sim-aside {
+      flex: 1;
+      min-height: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sim-aside h3 {
+      margin: 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      font-weight: 650;
+    }
+
+    .sim-aside-lede {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .sim-param-grid {
+      display: grid;
+      grid-template-columns: minmax(0, auto) 1fr;
+      gap: 8px 14px;
+      font-size: 12px;
+      margin: 0;
+    }
+
+    .sim-param-grid dt {
+      margin: 0;
+      color: rgba(230, 236, 255, 0.82);
+      font-weight: 600;
+    }
+
+    .sim-param-grid dd {
+      margin: 0;
+      color: var(--muted);
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .sim-ic-table-wrap {
+      overflow-x: auto;
+      margin: -4px 0 0 0;
+      border-radius: 8px;
+      border: 1px solid rgba(42, 58, 92, 0.9);
+      background: rgba(8, 12, 24, 0.45);
+    }
+
+    .sim-ic-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .sim-ic-table th,
+    .sim-ic-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(42, 58, 92, 0.65);
+      vertical-align: top;
+    }
+
+    .sim-ic-table th {
+      color: rgba(230, 236, 255, 0.88);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .sim-ic-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .sim-ic-table td:first-child {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .sim-ic-table code {
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 10px;
+      color: #b8c8ff;
+    }
+
+    .sim-aside .solution-details {
+      flex-shrink: 0;
     }
 
     .legend {
@@ -655,6 +794,7 @@
 
       .canvas-outer {
         animation: none !important;
+        filter: none !important;
         padding: 0 !important;
         margin: 0 !important;
         box-shadow:
@@ -665,6 +805,10 @@
       .canvas-wrap {
         animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both !important;
         animation-iteration-count: 1 !important;
+      }
+
+      .sim-aside {
+        overflow-y: visible;
       }
     }
   </style>
@@ -756,11 +900,122 @@
         </div>
       </aside>
 
-      <div class="canvas-outer" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
-        <div class="canvas-wrap">
-          <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
-          <div class="canvas-overlay" aria-hidden="true"></div>
+      <div class="canvas-column">
+        <div class="canvas-outer" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
+          <div class="canvas-wrap">
+            <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
+            <div class="canvas-overlay" aria-hidden="true"></div>
+          </div>
         </div>
+
+        <section class="sim-aside" aria-labelledby="sim-aside-heading">
+          <h3 id="sim-aside-heading">This run in numbers</h3>
+          <p class="sim-aside-lede">
+            The plot is not a video loop: each frame is fresh state from the Python integrator. Below is what the current
+            <code style="font-size: 11px; color: #b8c8ff">app/main.py</code> and this page’s script actually use, so you
+            can connect the picture to the implementation.
+          </p>
+
+          <dl class="sim-param-grid">
+            <dt>Model</dt>
+            <dd>Mutual Newtonian gravity in 2D, pairwise inverse-square attractions with gravitational constant G = 1 (code units).</dd>
+
+            <dt>Softening ε</dt>
+            <dd>10<sup>−2</sup> added inside ‖r<sub>j</sub> − r<sub>i</sub>‖² so accelerations stay finite when two bodies pass very close.</dd>
+
+            <dt>Timestep Δt</dt>
+            <dd>0.01 per substep. Four substeps are taken between each WebSocket message, so each network frame advances the simulation by 0.04 time units.</dd>
+
+            <dt>Integrator</dt>
+            <dd>
+              For each substep, accelerations are computed from current positions, then velocities and positions are updated in sequence (semi-implicit / Euler–Cromer style in the code). It is simple and cheap; it trades some energy drift for clarity.
+            </dd>
+
+            <dt>Stream</dt>
+            <dd>
+              JSON messages roughly every 1/60 s with <code>{ bodies: [{ x, y, m }, …] }</code> — three entries in the same order as the table below (red, cyan, lime on the canvas).
+            </dd>
+
+            <dt>Trails (client)</dt>
+            <dd>Up to 500 recent screen points per body; older points are dropped so memory and drawing stay bounded.</dd>
+
+            <dt>Display smoothing (client)</dt>
+            <dd>
+              Dots ease toward the latest server position for a gentler look; with “reduce motion” enabled in the OS, easing is turned off so disks snap to samples.
+            </dd>
+          </dl>
+
+          <p class="diagram-caption" style="margin: 0">Initial conditions in <code style="font-size: 10px; color: #8fa8e8">initial_bodies()</code> (same masses, symmetric-ish layout):</p>
+          <div class="sim-ic-table-wrap">
+            <table class="sim-ic-table">
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Canvas color</th>
+                  <th scope="col">Mass <var>m</var></th>
+                  <th scope="col">Position (<var>x</var>, <var>y</var>)</th>
+                  <th scope="col">Velocity (<var>v<sub>x</sub></var>, <var>v<sub>y</sub></var>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>Red</td>
+                  <td><code>1.0</code></td>
+                  <td><code>(-0.8, 0.0)</code></td>
+                  <td><code>(0.0, -0.35)</code></td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>Cyan</td>
+                  <td><code>1.0</code></td>
+                  <td><code>(0.8, 0.0)</code></td>
+                  <td><code>(0.0, 0.35)</code></td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Lime</td>
+                  <td><code>1.0</code></td>
+                  <td><code>(0.0, 1.1)</code></td>
+                  <td><code>(0.45, 0.0)</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="solution-details">
+            <summary>Why the shape looks “messy” — and what is conserved</summary>
+            <div class="solution-details-body">
+              <p>
+                Three-body motion is often <strong>chaotic</strong>: trajectories stay deterministic, but tiny changes in
+                initial data or in the numerics can diverge noticeably over time. That is expected for this model class, not
+                a sign that the WebSocket is corrupting data.
+              </p>
+              <p>
+                In an ideal continuous system, energy and angular momentum would be fixed along a solution. Discrete
+                stepping only approximates that; combined with softening, you should treat the run as a clear
+                <em>qualitative</em> picture of gravitationally interacting bodies, not a benchmark of long-term
+                conservation.
+              </p>
+              <p>
+                To try other orbits, masses, or step sizes, change <code>initial_bodies</code>, <code>DT</code>,
+                <code>SOFTENING</code>, or the substep count in <code>app/main.py</code> and restart the server.
+              </p>
+            </div>
+          </details>
+
+          <details class="solution-details">
+            <summary>Deployment &amp; <code>PUBLIC_WS_URL</code></summary>
+            <div class="solution-details-body">
+              <p>
+                The page opens a WebSocket to the same host as the page, or to <code>window.__WS_BASE__</code> when the
+                server injects it (see <code>build_index_html</code> and env vars <code>PUBLIC_WS_URL</code>,
+                <code>PUBLIC_HOST</code>, <code>PUBLIC_PORT</code>, <code>PUBLIC_TLS</code> in the app). Use that when the
+                HTML is served from a different origin than the simulation API.
+              </p>
+            </div>
+          </details>
+        </section>
       </div>
     </div>
 
