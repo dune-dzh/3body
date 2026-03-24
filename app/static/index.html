@@ -517,7 +517,7 @@
         transparent 58%
       );
       transform: translateX(-130%);
-      animation: canvasShineSweep 14s ease-in-out infinite;
+      animation: canvasShineSweep 15s ease-in-out infinite;
     }
 
     /* Short sweep, long pause, then repeats. */
@@ -1215,7 +1215,7 @@
     if (!reduceMotion) {
       const canvasOuter = document.querySelector(".canvas-outer");
       const canvasShine = document.querySelector(".canvas-shine");
-      const REPLAY_MS = 14000;
+      const REPLAY_MS = 15000;
       function hardRestartCssAnimation(el) {
         if (!el) return;
         el.style.animation = "none";
