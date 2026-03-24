@@ -15,7 +15,7 @@ Open the app after **`./install.sh`** (which runs **`docker compose`**) or local
 
 ## Install & runtime (Ubuntu)
 
-This repo targets **Linux / Ubuntu**. **`./install.sh`** syncs app files, creates **`.env`** if it is missing (unless one exists — use **`--refresh-env`** to regenerate), then **starts containers** (**`docker compose up --build -d`**). Use **`--no-start`** for files only. **`docker compose`** does not require a **`.env`** file for substitution — Compose reads **`.env`** only when it exists.
+This repo targets **Linux / Ubuntu**. **`./install.sh`** syncs app files, creates **`.env`** if it is missing (unless one exists — use **`--refresh-env`** to regenerate), then **reapplies the Compose stack**: **`docker compose down --remove-orphans`**, then **`docker compose up --build -d --force-recreate`** so each run matches the current files and config. Use **`--no-start`** for files only. **`docker compose`** does not require a **`.env`** file for substitution — Compose reads **`.env`** only when it exists.
 
 ## Prerequisites (Ubuntu)
 
@@ -68,11 +68,11 @@ On **Ubuntu/Debian**, **`./install.sh`** (or **`--install-docker`**) follows **[
 
 ## Using `install.sh`
 
-**If `docker` and `docker compose` work for your user** (`docker compose version`, `docker info`), **`./install.sh` is the only script you need**: it lays out files, writes **`.env`** when missing, and runs **`docker compose up --build -d`**. It does **not** install or require host Python in that case.
+**If `docker` and `docker compose` work for your user** (`docker compose version`, `docker info`), **`./install.sh` is the only script you need**: it lays out files, writes **`.env`** when missing, **stops the previous stack**, **rebuilds images**, and **starts fresh containers**. It does **not** install or require host Python in that case.
 
 **Permission denied?** Run **`chmod +x install.sh`** once, or **`bash install.sh`** (no execute bit needed). After you **commit**, the file should be mode **`100755`** in Git so others can run **`./install.sh`** after clone—see [Git: keeping `install.sh` executable](#git-keeping-installsh-executable).
 
-**Default:** **`./install.sh`** updates files, ensures Docker when needed, then runs **`docker compose up --build -d`**. Use **`./install.sh --no-start`** if you only want files (e.g. CI).
+**Default:** **`./install.sh`** updates files, ensures Docker when needed, then runs **`docker compose down --remove-orphans`** and **`docker compose up --build -d --force-recreate`**. Use **`./install.sh --no-start`** if you only want files (e.g. CI).
 
 **Host Python:** On **`--no-start`** machines where Docker is **not** yet usable, **`./install.sh`** may install **Python 3.9+** via **apt** on Ubuntu/Debian so a local **`uvicorn`** run is possible. If you want to skip that step anyway:
 
@@ -80,7 +80,7 @@ On **Ubuntu/Debian**, **`./install.sh`** (or **`--install-docker`**) follows **[
 ./install.sh --skip-python
 ```
 
-By default **`./install.sh`** **builds and starts** the stack in the background (**`docker compose up --build -d`**). To **only** refresh files without starting containers, use **`./install.sh --no-start`**. On **Debian/Ubuntu-like** systems, if Docker is missing it will try the official **`docker-ce`** packages (see earlier); use **`--skip-docker-install`** to **refuse** automatic apt install and fail if Docker is not already usable.
+By default **`./install.sh`** **tears down** any existing project containers, **rebuilds**, and **starts** the stack in the background. To **only** refresh files without touching Docker, use **`./install.sh --no-start`**. On **Debian/Ubuntu-like** systems, if Docker is missing it will try the official **`docker-ce`** packages (see earlier); use **`--skip-docker-install`** to **refuse** automatic apt install and fail if Docker is not already usable.
 
 **Windows (Git Bash):** `chmod +x` usually does **not** apply a real Unix executable bit on NTFS, and it does **not** change what Git stores. That is expected. To run the installer locally, use either:
 
@@ -132,10 +132,11 @@ Then open the URL the script prints when **`PUBLIC_HOST`** is set in `.env`, or 
 
 ## Run (Docker)
 
-**`./install.sh`** already runs **`docker compose up --build -d`** by default. To start manually from the project directory:
+**`./install.sh`** already runs **`docker compose down --remove-orphans`** then **`docker compose up --build -d --force-recreate`** by default. To do the same manually from the project directory:
 
 ```bash
-docker compose up --build -d
+docker compose down --remove-orphans
+docker compose up --build -d --force-recreate
 ```
 
 Follow logs with **`docker compose logs -f`**. **`docker ps`** should list the **threebody** service. Stop with **`docker compose down`**.

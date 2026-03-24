@@ -85,8 +85,10 @@
       font-size: 13px;
       color: var(--muted);
       max-width: 42ch;
-      animation: fadeRise 0.9s ease-out both;
-      animation-delay: 0.15s;
+      animation:
+        fadeRise 0.9s ease-out both,
+        taglineFloat 14s ease-in-out 1s infinite;
+      animation-delay: 0.15s, 1s;
     }
 
     .status {
@@ -99,7 +101,9 @@
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--panel);
-      animation: fadeRise 0.8s ease-out 0.2s both;
+      animation:
+        fadeRise 0.8s ease-out 0.2s both,
+        statusBob 16s ease-in-out 1.2s infinite;
     }
 
     .status-dot {
@@ -162,14 +166,19 @@
         transparent 55%
       );
       transform: translateX(-100%);
-      animation: panelShine 7s ease-in-out infinite;
+      animation: panelShine 22s ease-in-out infinite;
       pointer-events: none;
     }
 
+    /* Several sweeps per cycle, then repeats */
     @keyframes panelShine {
-      0%, 100% { transform: translateX(-100%); }
-      40% { transform: translateX(120%); }
-      100% { transform: translateX(120%); }
+      0% { transform: translateX(-100%); }
+      12% { transform: translateX(125%); }
+      12.01%, 28% { transform: translateX(-100%); }
+      40% { transform: translateX(125%); }
+      40.01%, 55% { transform: translateX(-100%); }
+      68% { transform: translateX(125%); }
+      68.01%, 100% { transform: translateX(-100%); }
     }
 
     .explain-panel h2 {
@@ -260,6 +269,25 @@
       display: block;
       border-radius: 8px;
       background: radial-gradient(circle at 40% 35%, #1a2540 0%, #0c101c 70%);
+    }
+
+    /* Schematic: cycle through several tilt angles, then loop */
+    .diag-motion {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: diagAngles 32s ease-in-out infinite;
+    }
+
+    @keyframes diagAngles {
+      0% { transform: rotate(0deg) scale(1); }
+      12% { transform: rotate(7deg) scale(1.03); }
+      24% { transform: rotate(-6deg) scale(1); }
+      38% { transform: rotate(9deg) scale(1.035); }
+      50% { transform: rotate(-5deg) scale(1.02); }
+      64% { transform: rotate(6deg) scale(1); }
+      78% { transform: rotate(-8deg) scale(1.03); }
+      92% { transform: rotate(4deg) scale(1.015); }
+      100% { transform: rotate(0deg) scale(1); }
     }
 
     .diag-line {
@@ -480,13 +508,15 @@
       align-items: center;
       gap: 8px;
       opacity: 0;
-      animation: legendIn 0.55s ease forwards;
+      animation:
+        legendIn 0.55s ease forwards,
+        legendGlow 18s ease-in-out infinite;
     }
 
-    .legend-item:nth-child(1) { animation-delay: 0.35s; }
-    .legend-item:nth-child(2) { animation-delay: 0.5s; }
-    .legend-item:nth-child(3) { animation-delay: 0.65s; }
-    .legend-item:nth-child(4) { animation-delay: 0.8s; }
+    .legend-item:nth-child(1) { animation-delay: 0.35s, 2.5s; }
+    .legend-item:nth-child(2) { animation-delay: 0.5s, 3.2s; }
+    .legend-item:nth-child(3) { animation-delay: 0.65s, 3.9s; }
+    .legend-item:nth-child(4) { animation-delay: 0.8s, 4.6s; }
 
     .swatch {
       width: 11px;
@@ -549,6 +579,23 @@
       }
     }
 
+    @keyframes taglineFloat {
+      0%, 100% { opacity: 0.88; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes statusBob {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124, 156, 255, 0); }
+      50% { box-shadow: 0 0 12px 0 rgba(124, 156, 255, 0.12); }
+    }
+
+    /* Subtle repeat after entrance (opacity only — keeps layout stable) */
+    @keyframes legendGlow {
+      0%, 40% { opacity: 1; filter: brightness(1); }
+      50% { opacity: 1; filter: brightness(1.12); }
+      60%, 100% { opacity: 1; filter: brightness(1); }
+    }
+
     @keyframes vignetteBreath {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.65; }
@@ -576,6 +623,34 @@
         animation:
           panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
       }
+
+      .diag-motion {
+        animation: none !important;
+      }
+
+      .tagline,
+      .status,
+      .legend-item {
+        animation: none !important;
+      }
+
+      .tagline {
+        animation: fadeRise 0.9s ease-out both !important;
+        animation-delay: 0.15s !important;
+      }
+
+      .status {
+        animation: fadeRise 0.8s ease-out 0.2s both !important;
+      }
+
+      .legend-item {
+        animation: legendIn 0.55s ease forwards !important;
+      }
+
+      .legend-item:nth-child(1) { animation-delay: 0.35s !important; }
+      .legend-item:nth-child(2) { animation-delay: 0.5s !important; }
+      .legend-item:nth-child(3) { animation-delay: 0.65s !important; }
+      .legend-item:nth-child(4) { animation-delay: 0.8s !important; }
     }
   </style>
 </head>
@@ -606,23 +681,25 @@
         </p>
         <svg class="diagram" viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three masses with attraction lines">
           <title>Three masses pull on each other</title>
-          <line class="diag-line" x1="130" y1="38" x2="52" y2="152" />
-          <line class="diag-line" x1="130" y1="38" x2="208" y2="152" />
-          <line class="diag-line" x1="52" y1="152" x2="208" y2="152" />
+          <g class="diag-motion">
+            <line class="diag-line" x1="130" y1="38" x2="52" y2="152" />
+            <line class="diag-line" x1="130" y1="38" x2="208" y2="152" />
+            <line class="diag-line" x1="52" y1="152" x2="208" y2="152" />
 
-          <g class="diag-mass">
-            <circle cx="130" cy="38" r="16" fill="#ff5252" opacity="0.95" />
-          </g>
-          <g class="diag-mass">
-            <circle cx="52" cy="152" r="16" fill="#40c4ff" opacity="0.95" />
-          </g>
-          <g class="diag-mass">
-            <circle cx="208" cy="152" r="16" fill="#b2ff59" opacity="0.95" />
-          </g>
+            <g class="diag-mass">
+              <circle cx="130" cy="38" r="16" fill="#ff5252" opacity="0.95" />
+            </g>
+            <g class="diag-mass">
+              <circle cx="52" cy="152" r="16" fill="#40c4ff" opacity="0.95" />
+            </g>
+            <g class="diag-mass">
+              <circle cx="208" cy="152" r="16" fill="#b2ff59" opacity="0.95" />
+            </g>
 
-          <text class="diag-label" x="130" y="28" text-anchor="middle">m₁</text>
-          <text class="diag-label" x="52" y="182" text-anchor="middle">m₂</text>
-          <text class="diag-label" x="208" y="182" text-anchor="middle">m₃</text>
+            <text class="diag-label" x="130" y="28" text-anchor="middle">m₁</text>
+            <text class="diag-label" x="52" y="182" text-anchor="middle">m₂</text>
+            <text class="diag-label" x="208" y="182" text-anchor="middle">m₃</text>
+          </g>
         </svg>
         <p class="diagram-caption">
           Schematic: every pair attracts. The actual run uses the same pairwise idea in 2D with masses and speeds you

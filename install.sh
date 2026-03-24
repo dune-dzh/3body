@@ -521,7 +521,7 @@ else
   cat > README.md <<'MD'
 # 3-Body Problem (Python + WebSocket + Docker)
 
-Run `./install.sh` (starts containers by default; use `--no-start` for files only). Open http://127.0.0.1:8000 or the URL printed.
+Run `./install.sh` (stops prior stack, rebuilds, starts containers; use `--no-start` for files only). Open http://127.0.0.1:8000 or the URL printed.
 MD
 fi
 
@@ -532,8 +532,9 @@ if [[ "${START_DOCKER}" -eq 1 ]] || [[ "${INSTALL_DOCKER}" -eq 1 ]]; then
 fi
 
 if [[ "$START_DOCKER" -eq 1 ]]; then
-  echo "Building and starting containers (detached)…"
-  docker compose up --build -d
+  echo "Stopping any existing stack, then rebuilding and starting (detached)…"
+  docker compose down --remove-orphans
+  docker compose up --build -d --force-recreate
   echo "Containers are up. Logs: docker compose logs -f"
   if [[ -n "${PUBLIC_HOST}" ]]; then
     echo "Open from the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
@@ -545,7 +546,7 @@ else
     echo "When you run docker compose, from the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
   fi
   echo "When you run docker compose, on this machine: http://127.0.0.1:${PUBLIC_PORT}"
-  echo "Start stack with: docker compose up --build -d"
+  echo "Start stack with: docker compose down --remove-orphans && docker compose up --build -d --force-recreate"
   if ! docker_compose_usable; then
     echo "" >&2
     echo "Note: Docker is not available to this user (install: ./install.sh --install-docker on Ubuntu/Debian, or see README)." >&2
