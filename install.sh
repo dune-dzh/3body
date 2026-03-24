@@ -38,6 +38,16 @@ run_privileged() {
   fi
 }
 
+# cp errors when src and dest are the same file (e.g. running install.sh from repo root).
+copy_if_needed() {
+  local src="$1" dest="$2"
+  mkdir -p "$(dirname "${dest}")"
+  if [[ "${src}" -ef "${dest}" ]]; then
+    return 0
+  fi
+  cp "${src}" "${dest}"
+}
+
 python3_usable() {
   command -v python3 >/dev/null 2>&1 || return 1
   python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null
@@ -294,7 +304,7 @@ else
 fi
 
 if [[ -f "${SCRIPT_DIR}/app/main.py" ]]; then
-  cp "${SCRIPT_DIR}/app/main.py" app/main.py
+  copy_if_needed "${SCRIPT_DIR}/app/main.py" app/main.py
 else
   cat > app/main.py <<'PY'
 import asyncio
@@ -428,7 +438,7 @@ PY
 fi
 
 if [[ -f "${SCRIPT_DIR}/app/static/index.html" ]]; then
-  cp "${SCRIPT_DIR}/app/static/index.html" app/static/index.html
+  copy_if_needed "${SCRIPT_DIR}/app/static/index.html" app/static/index.html
 else
   cat > app/static/index.html <<'HTML'
 <!doctype html>
@@ -470,13 +480,14 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 DOCKER
 
 if [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
-  cp "${SCRIPT_DIR}/docker-compose.yml" docker-compose.yml
+  copy_if_needed "${SCRIPT_DIR}/docker-compose.yml" docker-compose.yml
 else
   cat > docker-compose.yml <<'COMPOSE'
 version: "3.9"
 services:
   threebody:
     build: .
+    # Compose reads an optional project .env for ${...} substitution when the file exists.
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST:-}
       PUBLIC_PORT: ${PUBLIC_PORT:-8000}
@@ -488,15 +499,15 @@ COMPOSE
 fi
 
 if [[ -f "${SCRIPT_DIR}/.env.example" ]]; then
-  cp "${SCRIPT_DIR}/.env.example" .env.example
+  copy_if_needed "${SCRIPT_DIR}/.env.example" .env.example
 fi
 
 if [[ -f "${SCRIPT_DIR}/.gitignore" ]]; then
-  cp "${SCRIPT_DIR}/.gitignore" .gitignore
+  copy_if_needed "${SCRIPT_DIR}/.gitignore" .gitignore
 fi
 
 if [[ -f "${SCRIPT_DIR}/README.md" ]]; then
-  cp "${SCRIPT_DIR}/README.md" README.md
+  copy_if_needed "${SCRIPT_DIR}/README.md" README.md
 else
   cat > README.md <<'MD'
 # 3-Body Problem (Python + WebSocket + Docker)

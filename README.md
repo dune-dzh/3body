@@ -169,6 +169,7 @@ uvicorn app.main:app --host 0.0.0.0 --port "${PUBLIC_PORT:-8000}" --reload
 - **`E: Unable to locate package docker-compose-plugin`** when using **only** Ubuntu’s repos: use **[Docker’s apt repository](https://docs.docker.com/engine/install/ubuntu/)** so **`docker-compose-plugin`** comes from **`docker-ce`**, or run **`./install.sh --install-docker`**.
 - **Mixing `docker.io` and `docker-ce`:** remove `docker.io` first (see Docker docs “Uninstall old versions”), then install `docker-ce` and `docker-compose-plugin` from `download.docker.com`.
 - **`Unit file docker.service` missing**: no engine package installed successfully — complete the [official install steps](https://docs.docker.com/engine/install/ubuntu/) and run **`sudo systemctl enable --now docker`**.
+- **`cp: '.../app/main.py' and 'app/main.py' are the same file` / exit code 1:** fixed in current `install.sh` (it skips self-copies when you run the script **from the repository directory**). Update `install.sh` or **`git pull`**, then re-run **`./install.sh`**.
 - **`apt install docker.io` succeeds but compose still fails**: run **`sudo systemctl enable --now docker`**, then **`sudo usermod -aG docker "$USER"`** and log out/in.
 - **WebSocket stays disconnected** from another device: check firewall for `${PUBLIC_PORT:-8000}`/TCP, ensure **`.env`** sets **`PUBLIC_HOST`** to the address clients use (run **`./install.sh --refresh-env`** after fixing the network), or open the UI with that same host.
 
