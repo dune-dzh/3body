@@ -91,10 +91,24 @@
       animation-delay: 0.15s, 1s;
     }
 
-    /* Wrapper has no CSS animations — JS can change opacity/transform every 15s without fighting WAAPI/CSS. */
     .status-wrap {
       display: inline-block;
       vertical-align: bottom;
+    }
+
+    @keyframes statusWrapReplay {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-wrap.status-replay {
+      animation: statusWrapReplay 0.8s ease-out 0.2s both;
     }
 
     .status {
@@ -786,11 +800,10 @@
       60%, 100% { opacity: 1; filter: brightness(1); }
     }
 
-    /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay),
-      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay)::before,
-      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay)::after {
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(.status-wrap):not(#sim):not(.canvas-overlay),
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(.status-wrap):not(#sim):not(.canvas-overlay)::before,
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(.status-wrap):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -858,6 +871,10 @@
 
       .sim-aside {
         overflow-y: visible;
+      }
+
+      .status-wrap.status-replay {
+        animation: none !important;
       }
     }
   </style>
@@ -1125,6 +1142,40 @@
       },
     ];
 
+    const connStatus = document.getElementById("connStatus");
+    const connDot = document.getElementById("connDot");
+    const connLabel = document.getElementById("connLabel");
+    const connStatusWrap = document.getElementById("connStatusWrap");
+
+    function setConnectionLive(live) {
+      if (!connDot || !connStatus || !connLabel) return;
+      connDot.classList.toggle("live", live);
+      connStatus.classList.toggle("live-pulse", live);
+      connLabel.textContent = live ? "Live stream" : "Disconnected — retrying…";
+    }
+
+    const STATUS_REPLAY_MS = 15000;
+    function triggerStatusReplay() {
+      if (!connStatusWrap) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      connStatusWrap.classList.remove("status-replay");
+      void connStatusWrap.offsetWidth;
+      connStatusWrap.classList.add("status-replay");
+    }
+    if (connStatusWrap) {
+      connStatusWrap.addEventListener("animationend", function (ev) {
+        if (ev.target !== connStatusWrap) return;
+        if (ev.animationName !== "statusWrapReplay") return;
+        connStatusWrap.classList.remove("status-replay");
+      });
+      requestAnimationFrame(triggerStatusReplay);
+      setInterval(function () {
+        try {
+          triggerStatusReplay();
+        } catch (ignore) {}
+      }, STATUS_REPLAY_MS);
+    }
+
     const canvas = document.getElementById("sim");
     const ctx = canvas.getContext("2d");
     let bodies = [];
@@ -1144,18 +1195,9 @@
     const tourCard = document.getElementById("tourCard");
     const tourDots = document.getElementById("tourDots");
     const tourProgressBar = document.getElementById("tourProgressBar");
-    const connStatus = document.getElementById("connStatus");
-    const connDot = document.getElementById("connDot");
-    const connLabel = document.getElementById("connLabel");
 
     const TOUR_STEP_MS = 7000;
     let tourStepStarted = performance.now();
-
-    function setConnectionLive(live) {
-      connDot.classList.toggle("live", live);
-      connStatus.classList.toggle("live-pulse", live);
-      connLabel.textContent = live ? "Live stream" : "Disconnected — retrying…";
-    }
 
     function renderTourDOM() {
       tourCard.innerHTML = "";
@@ -1228,60 +1270,6 @@
     tickTourProgress();
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const connStatusWrap = document.getElementById("connStatusWrap");
-    const STATUS_REPLAY_MS = 15000;
-    const ENTRANCE_MS = 800;
-    const ENTRANCE_DELAY_MS = 200;
-    let statusIntroRaf = 0;
-    function replayStatusEntrance() {
-      var wrap = connStatusWrap;
-      if (!wrap) return;
-
-      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      var dur = reduced ? 220 : ENTRANCE_MS;
-      var delay = reduced ? 0 : ENTRANCE_DELAY_MS;
-      var dy = reduced ? 4 : 12;
-
-      if (statusIntroRaf) {
-        cancelAnimationFrame(statusIntroRaf);
-        statusIntroRaf = 0;
-      }
-
-      var startWall = performance.now();
-      function easeOut(t) {
-        return 1 - Math.pow(1 - t, 2.4);
-      }
-      function tick(now) {
-        var elapsed = now - startWall - delay;
-        if (elapsed < 0) {
-          wrap.style.opacity = "0";
-          wrap.style.transform = "translateY(" + dy + "px)";
-          statusIntroRaf = requestAnimationFrame(tick);
-          return;
-        }
-        var u = Math.min(1, elapsed / dur);
-        if (u >= 1) {
-          wrap.style.removeProperty("opacity");
-          wrap.style.removeProperty("transform");
-          statusIntroRaf = 0;
-          return;
-        }
-        var e = easeOut(u);
-        wrap.style.opacity = String(e);
-        wrap.style.transform = "translateY(" + dy * (1 - e) + "px)";
-        statusIntroRaf = requestAnimationFrame(tick);
-      }
-      statusIntroRaf = requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(replayStatusEntrance);
-    (function scheduleStatusReplay() {
-      window.setTimeout(function () {
-        replayStatusEntrance();
-        scheduleStatusReplay();
-      }, STATUS_REPLAY_MS);
-    })();
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
