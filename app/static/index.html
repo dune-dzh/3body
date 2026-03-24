@@ -126,6 +126,12 @@
         statusRing 3.2s ease-in-out 1.2s infinite;
     }
 
+    /* JS toggles this for one frame so fadeRise / ring / bob restart from t=0 (inline reset is flaky). */
+    .status.status-anim-reset,
+    .status-dot.status-anim-reset {
+      animation: none !important;
+    }
+
     @keyframes statusRing {
       0%, 100% { box-shadow: 0 0 0 0 rgba(105, 240, 174, 0); }
       50% { box-shadow: 0 0 0 6px rgba(105, 240, 174, 0.12); }
@@ -1214,19 +1220,22 @@
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (!reduceMotion) {
-      const STATUS_REPLAY_MS = 15000;
-      function hardRestartCssAnimation(el) {
-        if (!el) return;
-        el.style.animation = "none";
-        void el.offsetWidth;
-        el.style.removeProperty("animation");
+    const STATUS_REPLAY_MS = 15000;
+    function replayStatusEntrance() {
+      if (reduceMotion || !connStatus) return;
+      connStatus.classList.add("status-anim-reset");
+      if (connDot && connDot.classList.contains("live")) {
+        connDot.classList.add("status-anim-reset");
       }
-      /* Top-right connection pill: replay the same entrance as on load (fadeRise + ring/bob from CSS). */
-      setInterval(() => {
-        hardRestartCssAnimation(connStatus);
-      }, STATUS_REPLAY_MS);
+      void connStatus.offsetWidth;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          connStatus.classList.remove("status-anim-reset");
+          if (connDot) connDot.classList.remove("status-anim-reset");
+        });
+      });
     }
+    setInterval(replayStatusEntrance, STATUS_REPLAY_MS);
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
