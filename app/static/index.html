@@ -121,7 +121,9 @@
     }
 
     .status.live-pulse {
-      animation: statusRing 3.2s ease-in-out infinite;
+      animation:
+        fadeRise 0.8s ease-out 0.2s both,
+        statusRing 3.2s ease-in-out 1.2s infinite;
     }
 
     @keyframes statusRing {
@@ -1213,19 +1215,17 @@
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (!reduceMotion) {
-      const canvasOuter = document.querySelector(".canvas-outer");
-      const canvasShine = document.querySelector(".canvas-shine");
-      const REPLAY_MS = 15000;
+      const STATUS_REPLAY_MS = 15000;
       function hardRestartCssAnimation(el) {
         if (!el) return;
         el.style.animation = "none";
         void el.offsetWidth;
         el.style.removeProperty("animation");
       }
+      /* Top-right connection pill: replay the same entrance as on load (fadeRise + ring/bob from CSS). */
       setInterval(() => {
-        hardRestartCssAnimation(canvasOuter);
-        hardRestartCssAnimation(canvasShine);
-      }, REPLAY_MS);
+        hardRestartCssAnimation(connStatus);
+      }, STATUS_REPLAY_MS);
     }
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
