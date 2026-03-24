@@ -455,8 +455,8 @@
     }
 
     /*
-     * Original right column (v1): outer layer runs `canvasGlow` only — extra padding so `box-shadow`
-     * is not clipped; inner `.canvas-wrap` clips the plot and runs `panelIn` once.
+     * Right column: outer `canvasGlow` loops forever; inner wrap runs `panelIn` once then a border pulse +
+     * periodic shine sweep (same idea as the explain-panel shine).
      */
     .canvas-outer {
       position: relative;
@@ -464,14 +464,7 @@
       padding: 6px;
       margin: -6px;
       transform: translateZ(0);
-      animation-name: canvasGlow;
-      animation-duration: 5.5s;
-      animation-timing-function: ease-in-out;
-      animation-delay: 0.5s;
-      animation-iteration-count: infinite;
-      animation-direction: alternate;
-      animation-fill-mode: none;
-      animation-play-state: running;
+      animation: canvasGlow 5.5s ease-in-out 0.5s infinite alternate;
     }
 
     @keyframes canvasGlow {
@@ -509,6 +502,43 @@
       }
     }
 
+    .canvas-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      border-radius: 12px;
+      pointer-events: none;
+      background: linear-gradient(
+        105deg,
+        transparent 0%,
+        rgba(124, 156, 255, 0.12) 45%,
+        transparent 58%
+      );
+      transform: translateX(-130%);
+      animation: canvasShineSweep 14s ease-in-out infinite;
+    }
+
+    /* Short sweep, long pause, then repeats — clear “replay” on the plot frame. */
+    @keyframes canvasShineSweep {
+      0%,
+      72% {
+        transform: translateX(-130%);
+        opacity: 0;
+      }
+      74% {
+        opacity: 1;
+      }
+      82% {
+        transform: translateX(130%);
+        opacity: 0;
+      }
+      100% {
+        transform: translateX(130%);
+        opacity: 0;
+      }
+    }
+
     canvas {
       width: 100%;
       height: auto;
@@ -522,6 +552,7 @@
       pointer-events: none;
       position: absolute;
       inset: 0;
+      z-index: 2;
       border-radius: 12px;
       box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
       opacity: 0.85;
@@ -805,6 +836,11 @@
       .canvas-wrap {
         animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both !important;
         animation-iteration-count: 1 !important;
+      }
+
+      .canvas-wrap::after {
+        content: none !important;
+        animation: none !important;
       }
 
       .sim-aside {
