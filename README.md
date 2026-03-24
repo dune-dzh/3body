@@ -44,6 +44,8 @@ On **Ubuntu/Debian**, **`./install.sh --install-docker`** (optionally with **`--
 
 ## Using `install.sh`
 
+**Permission denied?** Run **`chmod +x install.sh`** once, or **`bash install.sh`** (no execute bit needed). After you **commit**, the file should be mode **`100755`** in Git so others can run **`./install.sh`** after clone—see [Git: keeping `install.sh` executable](#git-keeping-installsh-executable).
+
 On **Ubuntu** and **Debian**, `./install.sh` checks for **Python 3.9+**. If `python3` is missing or too old, it runs `apt-get install` for `python3`, `python3-venv`, and `python3-pip` (uses `sudo` when not root). Other distributions print a short warning if Python is missing; install 3.9+ yourself or use Docker only.
 
 To skip this step (e.g. Docker-only machine with no sudo), run:
@@ -53,8 +55,6 @@ To skip this step (e.g. Docker-only machine with no sudo), run:
 ```
 
 On a plain **`./install.sh`** the script does **not** install Docker; it only prints a **note** if `docker compose` is not ready. With **`--install-docker`** or **`--start`**, on **Debian/Ubuntu-like** systems it will **`apt install`** `docker.io` and **`docker-compose-plugin`** and start **`docker`** when needed, then **`--start` exits with status 1** if the CLI, Compose plugin, or **`docker info`** still fails (common fix: add your user to the **`docker`** group). Use **`--skip-docker-install`** with **`--start`** to **refuse** that automatic apt step and fail immediately when Docker is not already usable.
-
-**Linux / macOS:** After cloning, `install.sh` should already be executable in Git (`100755`). If not, run `chmod +x install.sh` once.
 
 **Windows (Git Bash):** `chmod +x` usually does **not** apply a real Unix executable bit on NTFS, and it does **not** change what Git stores. That is expected. To run the installer locally, use either:
 
