@@ -11,11 +11,11 @@ The interface is built to clarify what **“the solution”** means here: not a 
 - A **guided tour** (seven steps, auto-advance with Back / Next / Replay) on the problem, equations, integration, chaos, what the server sends, how to read trails, and demo limits.
 - A labeled **diagram** (pairwise attraction), **legend** tied to the numerical solution, **live WebSocket** status, and light motion **on the canvas** for readability.
 
-Open the app after `docker compose up` or local `uvicorn` at `http://127.0.0.1:8000` (or your `PUBLIC_HOST` / port).
+Open the app after **`./install.sh`** (which runs **`docker compose`**) or local **`uvicorn`** at `http://127.0.0.1:8000` (or your `PUBLIC_HOST` / port).
 
 ## Install & runtime (Ubuntu)
 
-This repo targets **Linux / Ubuntu**. Run **`./install.sh`** to sync app files; **`docker compose up` does not require a `.env` file** — Compose only reads `.env` **when it exists** (for `${PUBLIC_HOST}` / port substitution). **`./install.sh` creates `.env` if it is missing** (detected LAN IP and defaults). To overwrite an existing `.env`, use **`./install.sh --refresh-env`**.
+This repo targets **Linux / Ubuntu**. **`./install.sh`** syncs app files, creates **`.env`** if it is missing (unless one exists — use **`--refresh-env`** to regenerate), then **starts containers** (**`docker compose up --build -d`**). Use **`--no-start`** for files only. **`docker compose`** does not require a **`.env`** file for substitution — Compose reads **`.env`** only when it exists.
 
 ## Prerequisites (Ubuntu)
 
@@ -62,23 +62,25 @@ docker compose version
 docker info
 ```
 
-If those commands fail, `docker compose up` will fail too — **`./install.sh --start`** exits with a **non-zero status** and prints a hint.
+If those commands fail, **`./install.sh`** exits with a **non-zero status** when it tries to start the stack (default behavior).
 
-On **Ubuntu/Debian**, **`./install.sh --install-docker`** (optionally with **`--start`**) follows **[Docker’s Ubuntu apt instructions](https://docs.docker.com/engine/install/ubuntu/)** (`docker-ce`, **`docker-compose-plugin`**, etc.), then falls back to Ubuntu **`docker.io`** only if that fails. It **exits with an error** if the daemon is unreachable (for example user not in **`docker`** group).
+On **Ubuntu/Debian**, **`./install.sh`** (or **`--install-docker`**) follows **[Docker’s Ubuntu apt instructions](https://docs.docker.com/engine/install/ubuntu/)** when Docker is missing and a start is requested, then falls back to Ubuntu **`docker.io`** only if that fails. It **exits with an error** if the daemon is unreachable (for example user not in **`docker`** group).
 
 ## Using `install.sh`
 
+**If `docker` and `docker compose` work for your user** (`docker compose version`, `docker info`), **`./install.sh` is the only script you need**: it lays out files, writes **`.env`** when missing, and runs **`docker compose up --build -d`**. It does **not** install or require host Python in that case.
+
 **Permission denied?** Run **`chmod +x install.sh`** once, or **`bash install.sh`** (no execute bit needed). After you **commit**, the file should be mode **`100755`** in Git so others can run **`./install.sh`** after clone—see [Git: keeping `install.sh` executable](#git-keeping-installsh-executable).
 
-On **Ubuntu** and **Debian**, `./install.sh` checks for **Python 3.9+**. If `python3` is missing or too old, it runs `apt-get install` for `python3`, `python3-venv`, and `python3-pip` (uses `sudo` when not root). Other distributions print a short warning if Python is missing; install 3.9+ yourself or use Docker only.
+**Default:** **`./install.sh`** updates files, ensures Docker when needed, then runs **`docker compose up --build -d`**. Use **`./install.sh --no-start`** if you only want files (e.g. CI).
 
-To skip this step (e.g. Docker-only machine with no sudo), run:
+**Host Python:** On **`--no-start`** machines where Docker is **not** yet usable, **`./install.sh`** may install **Python 3.9+** via **apt** on Ubuntu/Debian so a local **`uvicorn`** run is possible. If you want to skip that step anyway:
 
 ```bash
 ./install.sh --skip-python
 ```
 
-On a plain **`./install.sh`** the script does **not** install Docker; it only prints a **note** if `docker compose` is not ready. With **`--install-docker`** or **`--start`**, on **Debian/Ubuntu-like** systems it will **`apt install`** `docker.io` and **`docker-compose-plugin`** and start **`docker`** when needed, then **`--start` exits with status 1** if the CLI, Compose plugin, or **`docker info`** still fails (common fix: add your user to the **`docker`** group). Use **`--skip-docker-install`** with **`--start`** to **refuse** that automatic apt step and fail immediately when Docker is not already usable.
+By default **`./install.sh`** **builds and starts** the stack in the background (**`docker compose up --build -d`**). To **only** refresh files without starting containers, use **`./install.sh --no-start`**. On **Debian/Ubuntu-like** systems, if Docker is missing it will try the official **`docker-ce`** packages (see earlier); use **`--skip-docker-install`** to **refuse** automatic apt install and fail if Docker is not already usable.
 
 **Windows (Git Bash):** `chmod +x` usually does **not** apply a real Unix executable bit on NTFS, and it does **not** change what Git stores. That is expected. To run the installer locally, use either:
 
@@ -90,28 +92,34 @@ sh install.sh
 
 To **record** the executable bit in Git so Ubuntu clones get `./install.sh` working, use the Git commands in [Git: keeping `install.sh` executable](#git-keeping-installsh-executable) — do not rely on `chmod` on Windows.
 
-Generate / refresh project files (Unix):
+Generate / refresh project files **and start containers** (default):
 
 ```bash
 ./install.sh
 ```
 
-Optional — generate files and start Docker in one step (`--start` checks that `docker` and `docker compose` exist):
+Files only, **no** **`docker compose`**:
 
 ```bash
-./install.sh --start
+./install.sh --no-start
 ```
 
 Combine flags when needed:
 
 ```bash
-./install.sh --skip-python --start
+./install.sh --skip-python
 ```
 
-Install Docker via apt (Debian-like) then bring the stack up (stops with **non-zero exit** if Docker still is not usable):
+Force **`docker compose`** after a **`--no-start`** run (redundant if you omitted `--no-start`):
 
 ```bash
-./install.sh --install-docker --start
+./install.sh --start
+```
+
+Install Docker via apt (Debian-like) if missing, then start the stack:
+
+```bash
+./install.sh --install-docker
 ```
 
 Regenerate **only** `.env` (LAN detection / env vars), leaving other files as-is:
@@ -124,11 +132,13 @@ Then open the URL the script prints when **`PUBLIC_HOST`** is set in `.env`, or 
 
 ## Run (Docker)
 
-From the project directory:
+**`./install.sh`** already runs **`docker compose up --build -d`** by default. To start manually from the project directory:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
+
+Follow logs with **`docker compose logs -f`**. **`docker ps`** should list the **threebody** service. Stop with **`docker compose down`**.
 
 Works **with or without** `.env`: with no file, **`PUBLIC_PORT`** defaults to **8000** and **`PUBLIC_HOST`** is empty (WebSocket uses the same host as the page). After **`./install.sh`**, a new **`.env`** usually sets **`PUBLIC_HOST`** to this machine’s LAN IPv4 so other devices can stream reliably. The server injects `window.__WS_BASE__` when `PUBLIC_HOST` or `PUBLIC_WS_URL` is set.
 
@@ -165,7 +175,7 @@ uvicorn app.main:app --host 0.0.0.0 --port "${PUBLIC_PORT:-8000}" --reload
 ## Troubleshooting
 
 - **Want a `.env` but don’t need the full installer**: copy **`cp .env.example .env`** and edit, or run **`./install.sh`** once (creates `.env` if missing).
-- **`--start` exits with code 1**: Docker is missing, **`docker compose`** is not installed, the daemon is stopped, or **`docker info`** fails (often: user not in **`docker`** group — see Prerequisites). The script prints a short reason on **stderr**.
+- **`./install.sh` exits with code 1** when it tries to start the stack but Docker is missing, **`docker compose`** is not installed, the daemon is stopped, or **`docker info`** fails (often: user not in **`docker`** group — see Prerequisites). The script prints a short reason on **stderr**.
 - **`E: Unable to locate package docker-compose-plugin`** when using **only** Ubuntu’s repos: use **[Docker’s apt repository](https://docs.docker.com/engine/install/ubuntu/)** so **`docker-compose-plugin`** comes from **`docker-ce`**, or run **`./install.sh --install-docker`**.
 - **Mixing `docker.io` and `docker-ce`:** remove `docker.io` first (see Docker docs “Uninstall old versions”), then install `docker-ce` and `docker-compose-plugin` from `download.docker.com`.
 - **`Unit file docker.service` missing**: no engine package installed successfully — complete the [official install steps](https://docs.docker.com/engine/install/ubuntu/) and run **`sudo systemctl enable --now docker`**.

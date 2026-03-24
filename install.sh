@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-START_DOCKER=0
+START_DOCKER=1
 SKIP_PYTHON=0
 REFRESH_ENV=0
 INSTALL_DOCKER=0
 SKIP_DOCKER_INSTALL=0
 for arg in "$@"; do
   case "$arg" in
+    --no-start) START_DOCKER=0 ;;
     --start) START_DOCKER=1 ;;
     --skip-python) SKIP_PYTHON=1 ;;
     --refresh-env) REFRESH_ENV=1 ;;
@@ -284,7 +285,15 @@ fi
 
 echo "Creating 3-body solution files..."
 
-ensure_python_for_distro
+# Host Python is only needed for a local uvicorn workflow. When Docker + compose
+# already work, or we will start the stack (containers provide Python), skip apt/sudo here.
+if [[ "${SKIP_PYTHON}" -eq 1 ]]; then
+  echo "Skipping host Python check (--skip-python)."
+elif [[ "${START_DOCKER}" -eq 1 ]] || [[ "${INSTALL_DOCKER}" -eq 1 ]] || docker_compose_usable; then
+  echo "Skipping host Python check (Docker path; host Python not required)."
+else
+  ensure_python_for_distro
+fi
 
 mkdir -p app/static
 
@@ -512,7 +521,7 @@ else
   cat > README.md <<'MD'
 # 3-Body Problem (Python + WebSocket + Docker)
 
-Run `./install.sh` then `docker compose up --build`. Open http://127.0.0.1:8000 or the URL printed by the installer.
+Run `./install.sh` (starts containers by default; use `--no-start` for files only). Open http://127.0.0.1:8000 or the URL printed.
 MD
 fi
 
@@ -523,15 +532,20 @@ if [[ "${START_DOCKER}" -eq 1 ]] || [[ "${INSTALL_DOCKER}" -eq 1 ]]; then
 fi
 
 if [[ "$START_DOCKER" -eq 1 ]]; then
-  echo "Starting Docker build/run..."
-  docker compose up --build
-else
-  echo "Install complete."
-  echo "Run: docker compose up --build"
+  echo "Building and starting containers (detached)…"
+  docker compose up --build -d
+  echo "Containers are up. Logs: docker compose logs -f"
   if [[ -n "${PUBLIC_HOST}" ]]; then
-    echo "From the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
+    echo "Open from the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
   fi
   echo "On this machine: http://127.0.0.1:${PUBLIC_PORT}"
+else
+  echo "Install complete (files only; skipped Docker: --no-start)."
+  if [[ -n "${PUBLIC_HOST}" ]]; then
+    echo "When you run docker compose, from the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
+  fi
+  echo "When you run docker compose, on this machine: http://127.0.0.1:${PUBLIC_PORT}"
+  echo "Start stack with: docker compose up --build -d"
   if ! docker_compose_usable; then
     echo "" >&2
     echo "Note: Docker is not available to this user (install: ./install.sh --install-docker on Ubuntu/Debian, or see README)." >&2
