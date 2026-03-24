@@ -454,19 +454,24 @@
       box-shadow: 0 0 10px rgba(124, 156, 255, 0.6);
     }
 
-    /* Original layout: one `.canvas-wrap`, slide-in once + `canvasGlow` loops forever (longhand keeps both animations). */
+    /*
+     * First-variant layout: `panelIn` on the wrap only. Repeating glow lives on `.canvas-ring` so
+     * `overflow: hidden` on the inner plot does not clip `box-shadow` (that bug blocked the loop).
+     */
     .canvas-wrap {
       position: relative;
       border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      animation-name: panelIn, canvasGlow;
-      animation-duration: 0.85s, 8s;
-      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
-      animation-delay: 0.08s, 0.5s;
-      animation-iteration-count: 1, infinite;
-      animation-direction: normal, alternate;
-      animation-fill-mode: both, none;
+      overflow: visible;
+      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+    }
+
+    .canvas-ring {
+      position: absolute;
+      z-index: 0;
+      inset: -3px;
+      border-radius: 14px;
+      pointer-events: none;
+      animation: canvasGlow 4s ease-in-out 0.35s infinite alternate;
     }
 
     @keyframes canvasGlow {
@@ -484,9 +489,13 @@
 
     .canvas-sway {
       position: relative;
+      z-index: 1;
       display: block;
       transform-origin: center center;
       will-change: transform;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
     }
 
     canvas {
@@ -610,9 +619,9 @@
 
     /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay),
-      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
-      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
+      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay),
+      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
+      *:not(.canvas-wrap):not(.canvas-ring):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -663,6 +672,13 @@
         animation-iteration-count: 1 !important;
         animation-direction: normal !important;
         animation-fill-mode: both !important;
+      }
+
+      .canvas-ring {
+        animation: none !important;
+        box-shadow:
+          0 0 0 1px rgba(42, 58, 92, 0.9),
+          0 0 24px rgba(70, 110, 220, 0.07) !important;
       }
     }
   </style>
@@ -755,6 +771,7 @@
       </aside>
 
       <div class="canvas-wrap" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
+        <div class="canvas-ring" aria-hidden="true"></div>
         <div class="canvas-sway">
           <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
           <div class="canvas-overlay" aria-hidden="true"></div>
@@ -844,40 +861,16 @@
       return !Number.isFinite(b.x) || !Number.isFinite(b.y);
     }
 
-    /** Fit all given world (x,y) points in the canvas; avoids “flew off screen → blank”. */
-    function makeCamera(positions) {
-      if (!positions.length) {
-        return { cx: 0, cy: 0, scale: 210 };
-      }
-      let minx = positions[0].x;
-      let maxx = positions[0].x;
-      let miny = positions[0].y;
-      let maxy = positions[0].y;
-      for (let i = 1; i < positions.length; i++) {
-        const p = positions[i];
-        minx = Math.min(minx, p.x);
-        maxx = Math.max(maxx, p.x);
-        miny = Math.min(miny, p.y);
-        maxy = Math.max(maxy, p.y);
-      }
-      const pad = 0.55;
-      const spanX = Math.max(maxx - minx, 0.55) + 2 * pad;
-      const spanY = Math.max(maxy - miny, 0.55) + 2 * pad;
-      const cx = (minx + maxx) / 2;
-      const cy = (miny + maxy) / 2;
-      const scale = Math.min(
-        (canvas.width * 0.42) / spanX,
-        (canvas.height * 0.42) / spanY,
-        280
-      );
-      const sc = Math.max(48, Math.min(scale, 340));
-      return { cx: cx, cy: cy, scale: sc };
-    }
+    /** First canvas variant: fixed scale around origin (short looping clip, not endless zoom-pan). */
+    const WORLD_SCALE = 210;
+    const TRAIL_MAX = 64;
+    const VIS_CLIP_MS = 4800;
+    let visClipStart = performance.now();
 
-    function worldToScreen(x, y, cam) {
+    function worldToScreen(x, y) {
       return {
-        x: canvas.width / 2 + (x - cam.cx) * cam.scale,
-        y: canvas.height / 2 - (y - cam.cy) * cam.scale,
+        x: canvas.width / 2 + x * WORLD_SCALE,
+        y: canvas.height / 2 - y * WORLD_SCALE,
       };
     }
 
@@ -1068,7 +1061,7 @@
         });
         bodies.forEach(function (b, i) {
           trails[i].push({ x: b.x, y: b.y });
-          if (trails[i].length > 500) trails[i].shift();
+          if (trails[i].length > TRAIL_MAX) trails[i].shift();
         });
       }
 
@@ -1076,6 +1069,22 @@
         resetDemoSimulation();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
+      }
+
+      /* Short repeating “snippet” like the first UI: restart clip on a timer. */
+      if (now - visClipStart >= VIS_CLIP_MS) {
+        visClipStart = now;
+        trails = [[], [], []];
+        if (useLiveStream(now)) {
+          displayXY = [];
+          bodies.forEach(function (b) {
+            displayXY.push({ x: b.x, y: b.y });
+          });
+        } else {
+          resetDemoSimulation();
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          return;
+        }
       }
 
       while (displayXY.length < bodies.length) {
@@ -1090,8 +1099,6 @@
         displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
         displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
       });
-
-      const cam = makeCamera(displayXY.length ? displayXY : bodies);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pulseT += 0.04;
@@ -1120,8 +1127,8 @@
           const alpha = 0.08 + t * 0.82;
           const q0 = tr[p - 1];
           const q1 = tr[p];
-          const s0 = worldToScreen(q0.x, q0.y, cam);
-          const s1 = worldToScreen(q1.x, q1.y, cam);
+          const s0 = worldToScreen(q0.x, q0.y);
+          const s1 = worldToScreen(q1.x, q1.y);
           ctx.beginPath();
           ctx.lineWidth = 1.45;
           ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha.toFixed(3) + ")";
@@ -1134,7 +1141,7 @@
       bodies.forEach((b, i) => {
         const px = displayXY[i].x;
         const py = displayXY[i].y;
-        const p = worldToScreen(px, py, cam);
+        const p = worldToScreen(px, py);
         const baseR = 8 + b.m * 2;
         const glow = baseR + 2.5 + Math.sin(pulseT + i * 1.2) * 0.9;
         const g = ctx.createRadialGradient(p.x, p.y, baseR * 0.2, p.x, p.y, glow);
@@ -1195,7 +1202,7 @@
           bodies = next;
           bodies.forEach((b, i) => {
             trails[i].push({ x: b.x, y: b.y });
-            if (trails[i].length > 500) trails[i].shift();
+            if (trails[i].length > TRAIL_MAX) trails[i].shift();
           });
         }
       };
