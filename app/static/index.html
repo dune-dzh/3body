@@ -624,27 +624,41 @@
       color: var(--muted);
     }
 
-    .sim-param-grid {
-      display: grid;
-      grid-template-columns: minmax(0, auto) 1fr;
-      gap: 8px 14px;
-      font-size: 12px;
-      margin: 0;
-    }
-
-    .sim-param-grid dt {
-      margin: 0;
-      color: rgba(230, 236, 255, 0.82);
-      font-weight: 600;
-    }
-
-    .sim-param-grid dd {
-      margin: 0;
-      color: var(--muted);
-      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+    .sim-aside-subhead {
+      margin: 0 0 6px 0;
       font-size: 11px;
-      line-height: 1.45;
-      word-break: break-word;
+      font-weight: 650;
+      color: rgba(230, 236, 255, 0.92);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .sim-aside-prose {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.58;
+      color: var(--muted);
+    }
+
+    .sim-aside-bullets {
+      margin: 0;
+      padding-left: 1.15rem;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .sim-aside-bullets li {
+      margin: 0 0 10px 0;
+    }
+
+    .sim-aside-bullets li:last-child {
+      margin-bottom: 0;
+    }
+
+    .sim-aside-bullets strong {
+      color: #c8d4f8;
+      font-weight: 650;
     }
 
     .sim-ic-table-wrap {
@@ -980,43 +994,66 @@
         </div>
 
         <section class="sim-aside" aria-labelledby="sim-aside-heading">
-          <h3 id="sim-aside-heading">This run in numbers</h3>
+          <h3 id="sim-aside-heading">Behind this run</h3>
           <p class="sim-aside-lede">
-            The plot is not a video loop: each frame is fresh state from the Python integrator. Below is what the current
-            <code style="font-size: 11px; color: #b8c8ff">app/main.py</code> and this page’s script actually use, so you
-            can connect the picture to the implementation.
+            Short answers to “what am I seeing?” and “how is it produced?” — without pretending a bullet list is a
+            physics lesson. For equations and the same model as the server, use
+            <strong style="color: #e6ecff; font-weight: 650">Model &amp; integration</strong> in the left column.
           </p>
 
-          <dl class="sim-param-grid">
-            <dt>Model</dt>
-            <dd>Mutual Newtonian gravity in 2D, pairwise inverse-square attractions with gravitational constant G = 1 (code units).</dd>
+          <p class="sim-aside-subhead">What you’re watching</p>
+          <p class="sim-aside-prose">
+            The curves are a <strong style="color: #c8d4f8; font-weight: 650">real-time numerical orbit</strong>: the
+            server integrates gravity in the plane and streams positions over a WebSocket. This page draws samples as it
+            receives them — not a pre-rendered loop. If the stream hiccups, the picture reflects that; if it runs, the mess
+            on screen is still the same equations stepping forward in time.
+          </p>
 
-            <dt>Softening ε</dt>
-            <dd>10<sup>−2</sup> added inside ‖r<sub>j</sub> − r<sub>i</sub>‖² so accelerations stay finite when two bodies pass very close.</dd>
+          <p class="sim-aside-subhead">Why it’s tuned for the screen</p>
+          <p class="sim-aside-prose">
+            Constants are chosen for visibility, not the solar system.
+            <strong style="color: #c8d4f8; font-weight: 650">G = 1</strong> in code units.
+            A small <strong style="color: #c8d4f8; font-weight: 650">softening ε = 10<sup>−2</sup></strong> keeps
+            accelerations from exploding when two bodies skim past each other — standard trick in N-body demos so the
+            timestep can stay reasonable.
+          </p>
 
-            <dt>Timestep Δt</dt>
-            <dd>0.01 per substep. Four substeps are taken between each WebSocket message, so each network frame advances the simulation by 0.04 time units.</dd>
+          <p class="sim-aside-subhead">How often things update</p>
+          <ul class="sim-aside-bullets">
+            <li>
+              <strong>Integration:</strong> each substep uses
+              <strong>Δt = 0.01</strong>. The server does <strong>four</strong> substeps between messages, so simulation
+              time advances <strong>0.04</strong> per network frame.
+            </li>
+            <li>
+              <strong>Updates to you:</strong> about <strong>60 frames per second</strong> of JSON like
+              <code style="font-size: 11px; color: #b8c8ff">{ "bodies": [ { "x", "y", "m" }, … ] }</code> — three bodies,
+              same order as <strong>red → cyan → lime</strong> on the canvas.
+            </li>
+            <li>
+              <strong>Integrator style:</strong> accelerations from current positions, then velocity and position updates
+              in order (Euler–Cromer–style in code). It’s easy to read in source and cheap to run; it is not built to
+              preserve energy perfectly over long runs.
+            </li>
+          </ul>
 
-            <dt>Integrator</dt>
-            <dd>
-              For each substep, accelerations are computed from current positions, then velocities and positions are updated in sequence (semi-implicit / Euler–Cromer style in the code). It is simple and cheap; it trades some energy drift for clarity.
-            </dd>
+          <p class="sim-aside-subhead">What the browser adds (cosmetic only)</p>
+          <ul class="sim-aside-bullets">
+            <li>
+              <strong>Trails:</strong> roughly the last <strong>500</strong> plotted points per body, then older points
+              are dropped so memory stays flat.
+            </li>
+            <li>
+              <strong>Disk motion:</strong> dots <em>ease</em> toward each new server position for a calmer look. If the
+              OS is set to <strong>reduce motion</strong>, that easing is turned off and positions snap to each sample —
+              closer to raw data, still not “more accurate physics.”
+            </li>
+          </ul>
 
-            <dt>Stream</dt>
-            <dd>
-              JSON messages roughly every 1/60 s with <code>{ bodies: [{ x, y, m }, …] }</code> — three entries in the same order as the table below (red, cyan, lime on the canvas).
-            </dd>
-
-            <dt>Trails (client)</dt>
-            <dd>Up to 500 recent screen points per body; older points are dropped so memory and drawing stay bounded.</dd>
-
-            <dt>Display smoothing (client)</dt>
-            <dd>
-              Dots ease toward the latest server position for a gentler look; with “reduce motion” enabled in the OS, easing is turned off so disks snap to samples.
-            </dd>
-          </dl>
-
-          <p class="diagram-caption" style="margin: 0">Initial conditions in <code style="font-size: 10px; color: #8fa8e8">initial_bodies()</code> (same masses, symmetric-ish layout):</p>
+          <p class="diagram-caption" style="margin: 0">
+            Starting state for this demo (edit <code style="font-size: 10px; color: #8fa8e8">initial_bodies()</code> in
+            Python to experiment):
+          </p>
           <div class="sim-ic-table-wrap">
             <table class="sim-ic-table">
               <thead>
