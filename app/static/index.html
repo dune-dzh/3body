@@ -797,6 +797,46 @@
     const ctx = canvas.getContext("2d");
     let bodies = [];
     let trails = [[], [], []];
+
+    /** Same model as the server — runs in the browser when WebSocket data is missing so the right-hand sim never “dies” after one frame. */
+    const DEMO_DT = 0.01;
+    let demoBodies = [
+      { x: -0.8, y: 0, vx: 0, vy: -0.35, m: 1 },
+      { x: 0.8, y: 0, vx: 0, vy: 0.35, m: 1 },
+      { x: 0, y: 1.1, vx: 0.45, vy: 0, m: 1 },
+    ];
+
+    function stepDemoBodies(arr, dt) {
+      const G0 = 1;
+      const eps = 1e-2;
+      const ax = [0, 0, 0];
+      const ay = [0, 0, 0];
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          if (i === j) continue;
+          const dx = arr[j].x - arr[i].x;
+          const dy = arr[j].y - arr[i].y;
+          const r2 = dx * dx + dy * dy + eps;
+          const invR3 = 1 / (r2 * Math.sqrt(r2));
+          const a = G0 * arr[j].m * invR3;
+          ax[i] += a * dx;
+          ay[i] += a * dy;
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        arr[i].vx += ax[i] * dt;
+        arr[i].vy += ay[i] * dt;
+        arr[i].x += arr[i].vx * dt;
+        arr[i].y += arr[i].vy * dt;
+      }
+    }
+
+    let lastWsTime = 0;
+    const WS_STALE_MS = 1800;
+
+    function useLiveStream(now) {
+      return lastWsTime > 0 && bodies.length >= 3 && now - lastWsTime < WS_STALE_MS;
+    }
     let tourIndex = 0;
     let tourTimer = null;
 
@@ -894,7 +934,7 @@
 
     tickTourProgress();
 
-    /** Repeating motion for the sim card (CSS @keyframes were ending after one pass in some setups). */
+    /** Repeating motion for the sim card frame (always rAF; amplitudes are visible, not sub-pixel). */
     function canvasCardAmbientLoop() {
       const wrap = document.querySelector(".canvas-wrap");
       const sway = document.querySelector(".canvas-sway");
@@ -907,14 +947,14 @@
 
       function frame(now) {
         const t = (now - t0) / 1000;
-        const amp = mq.matches ? 0.3 : 1;
+        const amp = mq.matches ? 0.45 : 1;
 
         const rot =
           amp *
-          (Math.sin(t * 0.31) * 0.85 +
-            Math.sin(t * 0.19) * 0.55 +
-            Math.sin(t * 0.47) * -0.4);
-        const sc = 1 + amp * (0.004 * Math.sin(t * 0.27) + 0.003 * Math.sin(t * 0.13));
+          (Math.sin(t * 0.31) * 2.2 +
+            Math.sin(t * 0.19) * 1.4 +
+            Math.sin(t * 0.47) * -1.1);
+        const sc = 1 + amp * (0.012 * Math.sin(t * 0.27) + 0.008 * Math.sin(t * 0.13));
         sway.style.transform = "rotate(" + rot + "deg) scale(" + sc + ")";
 
         const phase = 0.5 - 0.5 * Math.cos(t * 0.38 * Math.PI * 2);
@@ -944,6 +984,17 @@
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    if (!reduceMotion) {
+      const panelInEl = document.querySelector(".canvas-panel-in");
+      if (panelInEl) {
+        setInterval(function () {
+          panelInEl.style.animation = "none";
+          void panelInEl.offsetWidth;
+          panelInEl.style.removeProperty("animation");
+        }, 14000);
+      }
+    }
+
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
     for (let s = 0; s < STAR_COUNT; s++) {
@@ -961,6 +1012,19 @@
     let pulseT = 0;
 
     function draw() {
+      const now = performance.now();
+      if (!useLiveStream(now)) {
+        for (let k = 0; k < 4; k++) stepDemoBodies(demoBodies, DEMO_DT);
+        bodies = demoBodies.map(function (b) {
+          return { x: b.x, y: b.y, m: b.m };
+        });
+        bodies.forEach(function (b, i) {
+          const p = worldToScreen(b.x, b.y);
+          trails[i].push(p);
+          if (trails[i].length > 500) trails[i].shift();
+        });
+      }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pulseT += 0.04;
 
@@ -1066,12 +1130,16 @@
         } catch (e) {
           return;
         }
-        bodies = data.bodies || [];
-        bodies.forEach((b, i) => {
-          const p = worldToScreen(b.x, b.y);
-          trails[i].push(p);
-          if (trails[i].length > 500) trails[i].shift();
-        });
+        const next = data.bodies || [];
+        if (next.length >= 3) {
+          lastWsTime = performance.now();
+          bodies = next;
+          bodies.forEach((b, i) => {
+            const p = worldToScreen(b.x, b.y);
+            trails[i].push(p);
+            if (trails[i].length > 500) trails[i].shift();
+          });
+        }
       };
     }
 
