@@ -1136,7 +1136,6 @@
     const tourDots = document.getElementById("tourDots");
     const tourProgressBar = document.getElementById("tourProgressBar");
     const connStatus = document.getElementById("connStatus");
-    const connStatusInner = document.getElementById("connStatusInner");
     const connDot = document.getElementById("connDot");
     const connLabel = document.getElementById("connLabel");
 
@@ -1224,27 +1223,64 @@
     const STATUS_REPLAY_MS = 15000;
     const ENTRANCE_MS = 800;
     const ENTRANCE_DELAY_MS = 200;
+    let statusIntroAnimation = null;
     function replayStatusEntrance() {
-      if (reduceMotion || !connStatusInner) return;
-      if (typeof connStatusInner.animate !== "function") return;
-      connStatusInner.getAnimations().forEach(function (a) {
-        a.cancel();
-      });
-      connStatusInner.animate(
+      if (!connStatus) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      function goTransition() {
+        connStatus.style.transition = "opacity " + ENTRANCE_MS / 1000 + "s ease-out, transform " + ENTRANCE_MS / 1000 + "s ease-out";
+        connStatus.style.opacity = "0";
+        connStatus.style.transform = "translateY(12px)";
+        void connStatus.offsetWidth;
+        window.setTimeout(function () {
+          connStatus.style.opacity = "1";
+          connStatus.style.transform = "translateY(0)";
+        }, ENTRANCE_DELAY_MS);
+        window.setTimeout(function () {
+          connStatus.style.transition = "";
+          connStatus.style.removeProperty("opacity");
+          connStatus.style.removeProperty("transform");
+        }, ENTRANCE_DELAY_MS + ENTRANCE_MS + 80);
+      }
+
+      if (typeof connStatus.animate !== "function") {
+        goTransition();
+        return;
+      }
+
+      /* Never call getAnimations().cancel() here: that would kill CSS statusBob / statusRing on this node. */
+      if (statusIntroAnimation) {
+        try {
+          statusIntroAnimation.cancel();
+        } catch (err) {}
+        statusIntroAnimation = null;
+      }
+
+      statusIntroAnimation = connStatus.animate(
         [
-          { opacity: 0, transform: "translateY(6px)" },
+          { opacity: 0, transform: "translateY(12px)" },
           { opacity: 1, transform: "translateY(0)" },
         ],
         {
           duration: ENTRANCE_MS,
           delay: ENTRANCE_DELAY_MS,
           easing: "ease-out",
-          fill: "forwards",
+          fill: "both",
         }
       );
+      statusIntroAnimation.onfinish = function () {
+        statusIntroAnimation = null;
+      };
     }
+
     requestAnimationFrame(replayStatusEntrance);
-    setInterval(replayStatusEntrance, STATUS_REPLAY_MS);
+    (function scheduleStatusReplay() {
+      window.setTimeout(function () {
+        replayStatusEntrance();
+        scheduleStatusReplay();
+      }, STATUS_REPLAY_MS);
+    })();
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
