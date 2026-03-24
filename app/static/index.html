@@ -502,31 +502,32 @@
       }
     }
 
-    .canvas-wrap::after {
-      content: "";
+    /* Real node (not ::after): sits above the vignette so the sweep is visible, and can be JS-restarted. */
+    .canvas-shine {
       position: absolute;
       inset: 0;
-      z-index: 1;
+      z-index: 3;
       border-radius: 12px;
       pointer-events: none;
+      mix-blend-mode: screen;
       background: linear-gradient(
         105deg,
         transparent 0%,
-        rgba(124, 156, 255, 0.12) 45%,
+        rgba(124, 156, 255, 0.22) 45%,
         transparent 58%
       );
       transform: translateX(-130%);
       animation: canvasShineSweep 14s ease-in-out infinite;
     }
 
-    /* Short sweep, long pause, then repeats — clear “replay” on the plot frame. */
+    /* Short sweep, long pause, then repeats. */
     @keyframes canvasShineSweep {
       0%,
-      72% {
+      70% {
         transform: translateX(-130%);
         opacity: 0;
       }
-      74% {
+      72% {
         opacity: 1;
       }
       82% {
@@ -555,7 +556,7 @@
       z-index: 2;
       border-radius: 12px;
       box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
-      opacity: 0.85;
+      opacity: 0.78;
     }
 
     .canvas-column {
@@ -778,9 +779,9 @@
 
     /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay),
-      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay)::before,
-      *:not(.canvas-outer):not(.canvas-wrap):not(#sim):not(.canvas-overlay)::after {
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay),
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay)::before,
+      *:not(.canvas-outer):not(.canvas-wrap):not(.canvas-shine):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -838,9 +839,8 @@
         animation-iteration-count: 1 !important;
       }
 
-      .canvas-wrap::after {
-        content: none !important;
-        animation: none !important;
+      .canvas-shine {
+        display: none !important;
       }
 
       .sim-aside {
@@ -901,7 +901,7 @@
           can change only in code — the UI explains the method, not a parameter panel.
         </p>
 
-        <details class="solution-details">
+        <details class="solution-details" open>
           <summary>Model &amp; integration (matches the server)</summary>
           <div class="solution-details-body">
             <p>
@@ -941,6 +941,7 @@
           <div class="canvas-wrap">
             <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
             <div class="canvas-overlay" aria-hidden="true"></div>
+            <div class="canvas-shine" aria-hidden="true"></div>
           </div>
         </div>
 
@@ -1210,6 +1211,22 @@
     tickTourProgress();
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!reduceMotion) {
+      const canvasOuter = document.querySelector(".canvas-outer");
+      const canvasShine = document.querySelector(".canvas-shine");
+      const REPLAY_MS = 14000;
+      function hardRestartCssAnimation(el) {
+        if (!el) return;
+        el.style.animation = "none";
+        void el.offsetWidth;
+        el.style.removeProperty("animation");
+      }
+      setInterval(() => {
+        hardRestartCssAnimation(canvasOuter);
+        hardRestartCssAnimation(canvasShine);
+      }, REPLAY_MS);
+    }
 
     const STAR_COUNT = reduceMotion ? 0 : 90;
     const stars = [];
