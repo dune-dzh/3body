@@ -810,8 +810,6 @@
       return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
     });
 
-    const DEMO_RESET_LIMIT = 3.5;
-
     function resetDemoSimulation() {
       demoBodies = DEMO_BODIES_INIT.map(function (b) {
         return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
@@ -821,13 +819,45 @@
       displayXY = [];
     }
 
-    function bodyOutOfView(b) {
-      return (
-        !Number.isFinite(b.x) ||
-        !Number.isFinite(b.y) ||
-        Math.abs(b.x) > DEMO_RESET_LIMIT ||
-        Math.abs(b.y) > DEMO_RESET_LIMIT
+    function bodyBroken(b) {
+      return !Number.isFinite(b.x) || !Number.isFinite(b.y);
+    }
+
+    /** Fit all given world (x,y) points in the canvas; avoids “flew off screen → blank”. */
+    function makeCamera(positions) {
+      if (!positions.length) {
+        return { cx: 0, cy: 0, scale: 210 };
+      }
+      let minx = positions[0].x;
+      let maxx = positions[0].x;
+      let miny = positions[0].y;
+      let maxy = positions[0].y;
+      for (let i = 1; i < positions.length; i++) {
+        const p = positions[i];
+        minx = Math.min(minx, p.x);
+        maxx = Math.max(maxx, p.x);
+        miny = Math.min(miny, p.y);
+        maxy = Math.max(maxy, p.y);
+      }
+      const pad = 0.55;
+      const spanX = Math.max(maxx - minx, 0.55) + 2 * pad;
+      const spanY = Math.max(maxy - miny, 0.55) + 2 * pad;
+      const cx = (minx + maxx) / 2;
+      const cy = (miny + maxy) / 2;
+      const scale = Math.min(
+        (canvas.width * 0.42) / spanX,
+        (canvas.height * 0.42) / spanY,
+        280
       );
+      const sc = Math.max(48, Math.min(scale, 340));
+      return { cx: cx, cy: cy, scale: sc };
+    }
+
+    function worldToScreen(x, y, cam) {
+      return {
+        x: canvas.width / 2 + (x - cam.cx) * cam.scale,
+        y: canvas.height / 2 - (y - cam.cy) * cam.scale,
+      };
     }
 
     function stepDemoBodies(arr, dt) {
@@ -878,14 +908,6 @@
       connDot.classList.toggle("live", live);
       connStatus.classList.toggle("live-pulse", live);
       connLabel.textContent = live ? "Live stream" : "Disconnected — retrying…";
-    }
-
-    function worldToScreen(x, y) {
-      const scale = 210;
-      return {
-        x: canvas.width / 2 + x * scale,
-        y: canvas.height / 2 - y * scale,
-      };
     }
 
     function renderTourDOM() {
@@ -1008,6 +1030,7 @@
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    /** Replays the same intro as first paint: `.canvas-panel-in` panelIn (skipped when reduced motion is on). */
     if (!reduceMotion) {
       const panelInEl = document.querySelector(".canvas-panel-in");
       if (panelInEl) {
@@ -1015,7 +1038,7 @@
           panelInEl.style.animation = "none";
           void panelInEl.offsetWidth;
           panelInEl.style.removeProperty("animation");
-        }, 14000);
+        }, 12000);
       }
     }
 
@@ -1043,17 +1066,31 @@
           return { x: b.x, y: b.y, m: b.m };
         });
         bodies.forEach(function (b, i) {
-          const p = worldToScreen(b.x, b.y);
-          trails[i].push(p);
+          trails[i].push({ x: b.x, y: b.y });
           if (trails[i].length > 500) trails[i].shift();
         });
       }
 
-      // If the simulation flies off-screen (common with chaotic three-body or numerical blow-ups),
-      // reset so the canvas keeps looping visibly.
-      if (bodies.length >= 3 && bodies.some(bodyOutOfView)) {
+      if (bodies.length >= 3 && bodies.some(bodyBroken)) {
         resetDemoSimulation();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
       }
+
+      while (displayXY.length < bodies.length) {
+        const b = bodies[displayXY.length];
+        displayXY.push({ x: b.x, y: b.y });
+      }
+      if (displayXY.length > bodies.length) {
+        displayXY.length = bodies.length;
+      }
+
+      bodies.forEach(function (b, i) {
+        displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
+        displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
+      });
+
+      const cam = makeCamera(displayXY.length ? displayXY : bodies);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pulseT += 0.04;
@@ -1080,34 +1117,25 @@
         for (let p = 1; p < tr.length; p++) {
           const t = p / (tr.length - 1);
           const alpha = 0.08 + t * 0.82;
+          const q0 = tr[p - 1];
+          const q1 = tr[p];
+          const s0 = worldToScreen(q0.x, q0.y, cam);
+          const s1 = worldToScreen(q1.x, q1.y, cam);
           ctx.beginPath();
           ctx.lineWidth = 1.45;
           ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha.toFixed(3) + ")";
-          ctx.moveTo(tr[p - 1].x, tr[p - 1].y);
-          ctx.lineTo(tr[p].x, tr[p].y);
+          ctx.moveTo(s0.x, s0.y);
+          ctx.lineTo(s1.x, s1.y);
           ctx.stroke();
         }
       }
 
-      while (displayXY.length < bodies.length) {
-        const b = bodies[displayXY.length];
-        displayXY.push({ x: b.x, y: b.y });
-      }
-      if (displayXY.length > bodies.length) {
-        displayXY.length = bodies.length;
-      }
-
-      bodies.forEach((b, i) => {
-        displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
-        displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
-      });
-
       bodies.forEach((b, i) => {
         const px = displayXY[i].x;
         const py = displayXY[i].y;
-        const p = worldToScreen(px, py);
+        const p = worldToScreen(px, py, cam);
         const baseR = 8 + b.m * 2;
-        const glow = baseR + 4 + Math.sin(pulseT + i * 1.2) * 2;
+        const glow = baseR + 2.5 + Math.sin(pulseT + i * 1.2) * 0.9;
         const g = ctx.createRadialGradient(p.x, p.y, baseR * 0.2, p.x, p.y, glow);
         const colors = [
           ["rgba(255,82,82,0.35)", "#ff5252"],
@@ -1165,8 +1193,7 @@
           lastWsTime = performance.now();
           bodies = next;
           bodies.forEach((b, i) => {
-            const p = worldToScreen(b.x, b.y);
-            trails[i].push(p);
+            trails[i].push({ x: b.x, y: b.y });
             if (trails[i].length > 500) trails[i].shift();
           });
         }
