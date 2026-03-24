@@ -4,11 +4,15 @@ set -euo pipefail
 START_DOCKER=0
 SKIP_PYTHON=0
 REFRESH_ENV=0
+INSTALL_DOCKER=0
+SKIP_DOCKER_INSTALL=0
 for arg in "$@"; do
   case "$arg" in
     --start) START_DOCKER=1 ;;
     --skip-python) SKIP_PYTHON=1 ;;
     --refresh-env) REFRESH_ENV=1 ;;
+    --install-docker) INSTALL_DOCKER=1 ;;
+    --skip-docker-install) SKIP_DOCKER_INSTALL=1 ;;
   esac
 done
 
@@ -80,6 +84,80 @@ ensure_python_for_distro() {
     exit 1
   fi
   echo "Python: $(python3 --version 2>&1)"
+}
+
+docker_compose_usable() {
+  command -v docker >/dev/null 2>&1 || return 1
+  docker compose version >/dev/null 2>&1 || return 1
+  docker info >/dev/null 2>&1 || return 1
+  return 0
+}
+
+debian_like_distro() {
+  if [[ ! -r /etc/os-release ]]; then
+    return 1
+  fi
+  # shellcheck source=/dev/null
+  . /etc/os-release
+  case "${ID:-}" in
+    ubuntu|debian|linuxmint|pop) return 0 ;;
+    *)
+      [[ "${ID_LIKE:-}" == *debian* ]] && return 0
+      ;;
+  esac
+  return 1
+}
+
+ensure_docker_apt() {
+  export DEBIAN_FRONTEND=noninteractive
+  echo "Installing Docker (docker.io + docker-compose-plugin) via apt — sudo may be required."
+  run_privileged apt-get update -qq
+  run_privileged apt-get install -y --no-install-recommends \
+    docker.io docker-compose-plugin
+  if run_privileged systemctl is-system-running >/dev/null 2>&1; then
+    run_privileged systemctl enable docker 2>/dev/null || true
+    run_privileged systemctl start docker 2>/dev/null || true
+  fi
+}
+
+ensure_docker_for_use() {
+  local try_apt=0
+  local cv=""
+  if [[ "${INSTALL_DOCKER}" -eq 1 ]] || [[ "${START_DOCKER}" -eq 1 ]]; then
+    try_apt=1
+  fi
+  if [[ "${SKIP_DOCKER_INSTALL}" -eq 1 ]]; then
+    try_apt=0
+  fi
+
+  if docker_compose_usable; then
+    cv=$(docker compose version 2>/dev/null | head -n 1) || true
+    [[ -z "${cv}" ]] && cv="(docker compose version unavailable)"
+    echo "Docker: $(docker --version 2>&1); compose: ${cv}"
+    return 0
+  fi
+
+  if [[ "${try_apt}" -eq 1 ]] && debian_like_distro; then
+    ensure_docker_apt
+  elif [[ "${try_apt}" -eq 1 ]]; then
+    echo "Error: Docker is not usable and automatic install is only implemented on Debian/Ubuntu-style systems." >&2
+    echo "Install Docker manually, then re-run with --start. See README.md." >&2
+    exit 1
+  fi
+
+  if ! docker_compose_usable; then
+    if [[ "${START_DOCKER}" -eq 1 ]] || [[ "${INSTALL_DOCKER}" -eq 1 ]]; then
+      echo "Error: Docker CLI, 'docker compose' plugin, or daemon access failed after install attempt." >&2
+      echo "Often fixes: sudo systemctl start docker   OR   sudo usermod -aG docker \"$USER\" (then log out and back in)." >&2
+      echo "Verify with: docker compose version && docker info" >&2
+      exit 1
+    fi
+    return 0
+  fi
+
+  cv=$(docker compose version 2>/dev/null | head -n 1) || true
+  [[ -z "${cv}" ]] && cv="(docker compose version unavailable)"
+  echo "Docker: $(docker --version 2>&1); compose: ${cv}"
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -329,15 +407,11 @@ fi
 
 echo "Created: .env, app/main.py, app/static/index.html, requirements.txt, Dockerfile, docker-compose.yml"
 
+if [[ "${START_DOCKER}" -eq 1 ]] || [[ "${INSTALL_DOCKER}" -eq 1 ]]; then
+  ensure_docker_for_use
+fi
+
 if [[ "$START_DOCKER" -eq 1 ]]; then
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "Error: Docker is not installed. Install Docker or run without --start." >&2
-    exit 1
-  fi
-  if ! docker compose version >/dev/null 2>&1; then
-    echo "Error: 'docker compose' (V2 plugin) not found. Install docker-compose-plugin (e.g. apt install docker-compose-plugin)." >&2
-    exit 1
-  fi
   echo "Starting Docker build/run..."
   docker compose up --build
 else
@@ -347,4 +421,9 @@ else
     echo "From the network: http://${PUBLIC_HOST}:${PUBLIC_PORT}"
   fi
   echo "On this machine: http://127.0.0.1:${PUBLIC_PORT}"
+  if ! docker_compose_usable; then
+    echo "" >&2
+    echo "Note: Docker is not available to this user (install: ./install.sh --install-docker on Ubuntu/Debian, or see README)." >&2
+    echo "      Until then, 'docker compose up --build' will fail; use local Python + uvicorn if you prefer." >&2
+  fi
 fi

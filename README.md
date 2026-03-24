@@ -19,13 +19,28 @@ This repo targets **Linux / Ubuntu**. Run **`./install.sh`** to sync app files; 
 
 ## Prerequisites (Ubuntu)
 
-- **Docker Engine** and **`docker compose`** (v2 plugin), *or* **Python 3.9+** and `pip` for a local run (the container image uses Python 3.11)
+- **Docker Engine** and **`docker compose`** (v2 plugin), *or* **Python 3.9+** and `pip` for a local run (the container image uses Python 3.11).
+
+Manual Docker install (Ubuntu/Debian packages from the distribution):
 
 ```bash
 sudo apt update
 sudo apt install -y docker.io docker-compose-plugin
-# optional: add your user to the docker group, then log out/in
+sudo systemctl enable --now docker
 ```
+
+So **`docker info`** and **`docker compose version`** work **without** `sudo`, add your user to the `docker` group, then start a **new login session**:
+
+```bash
+sudo usermod -aG docker "$USER"
+# log out and back in, or: newgrp docker
+docker compose version
+docker info
+```
+
+If those commands fail, `docker compose up` will fail too — **`./install.sh --start`** exits with a **non-zero status** and prints a hint.
+
+On **Ubuntu/Debian**, **`./install.sh --install-docker`** (optionally with **`--start`**) tries the same **`apt`** packages and **`systemctl start docker`** for you; it still **exits with an error** if the daemon is unreachable (for example user not in **`docker`** group).
 
 ## Using `install.sh`
 
@@ -36,6 +51,8 @@ To skip this step (e.g. Docker-only machine with no sudo), run:
 ```bash
 ./install.sh --skip-python
 ```
+
+On a plain **`./install.sh`** the script does **not** install Docker; it only prints a **note** if `docker compose` is not ready. With **`--install-docker`** or **`--start`**, on **Debian/Ubuntu-like** systems it will **`apt install`** `docker.io` and **`docker-compose-plugin`** and start **`docker`** when needed, then **`--start` exits with status 1** if the CLI, Compose plugin, or **`docker info`** still fails (common fix: add your user to the **`docker`** group). Use **`--skip-docker-install`** with **`--start`** to **refuse** that automatic apt step and fail immediately when Docker is not already usable.
 
 **Linux / macOS:** After cloning, `install.sh` should already be executable in Git (`100755`). If not, run `chmod +x install.sh` once.
 
@@ -65,6 +82,12 @@ Combine flags when needed:
 
 ```bash
 ./install.sh --skip-python --start
+```
+
+Install Docker via apt (Debian-like) then bring the stack up (stops with **non-zero exit** if Docker still is not usable):
+
+```bash
+./install.sh --install-docker --start
 ```
 
 Regenerate **only** `.env` (LAN detection / env vars), leaving other files as-is:
@@ -118,7 +141,8 @@ uvicorn app.main:app --host 0.0.0.0 --port "${PUBLIC_PORT:-8000}" --reload
 ## Troubleshooting
 
 - **Want a `.env` but don’t need the full installer**: copy **`cp .env.example .env`** and edit, or run **`./install.sh`** once (creates `.env` if missing).
-- **`--start` exits** with a Docker error: install Docker and the Compose v2 plugin (`docker compose version` should work).
+- **`--start` exits with code 1**: Docker is missing, **`docker compose`** is not installed, the daemon is stopped, or **`docker info`** fails (often: user not in **`docker`** group — see Prerequisites). The script prints a short reason on **stderr**.
+- **`apt install docker.io` succeeds but compose still fails**: run **`sudo systemctl enable --now docker`**, then **`sudo usermod -aG docker "$USER"`** and log out/in.
 - **WebSocket stays disconnected** from another device: check firewall for `${PUBLIC_PORT:-8000}`/TCP, ensure **`.env`** sets **`PUBLIC_HOST`** to the address clients use (run **`./install.sh --refresh-env`** after fixing the network), or open the UI with that same host.
 
 ## Git: keeping `install.sh` executable
