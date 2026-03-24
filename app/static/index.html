@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3-Body Problem</title>
+  <style>
+    :root {
+      --bg: #06080f;
+      --panel: rgba(16, 24, 44, 0.92);
+      --border: #2a3a5c;
+      --muted: #9db0e8;
+      --accent: #7c9cff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: #e6ecff;
+      font-family: "Segoe UI", system-ui, Arial, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      position: relative;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -25%;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 85% 55% at 15% 35%, rgba(72, 92, 220, 0.14), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 85% 65%, rgba(80, 200, 180, 0.1), transparent 52%);
+      animation: bgDrift 32s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgDrift {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-4%, 3%) scale(1.03); }
+    }
+
+    .wrap {
+      width: min(92vw, 960px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .header-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      background: linear-gradient(
+        105deg,
+        #e6ecff 0%,
+        #a8bfff 40%,
+        #e6ecff 55%,
+        #7cfdcb 100%
+      );
+      background-size: 220% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: titleShimmer 7s ease-in-out infinite;
+    }
+
+    .tagline {
+      margin: 4px 0 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      max-width: 42ch;
+      animation: fadeRise 0.9s ease-out both;
+      animation-delay: 0.15s;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      animation: fadeRise 0.8s ease-out 0.2s both;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff6b6b;
+      box-shadow: 0 0 12px #ff6b6b88;
+    }
+
+    .status-dot.live {
+      background: #69f0ae;
+      box-shadow: 0 0 14px #69f0ae99;
+      animation: pulseDot 1.6s ease-in-out infinite;
+    }
+
+    .status.live-pulse {
+      animation: statusRing 3.2s ease-in-out infinite;
+    }
+
+    @keyframes statusRing {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(105, 240, 174, 0); }
+      50% { box-shadow: 0 0 0 6px rgba(105, 240, 174, 0.12); }
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 760px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .explain-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .explain-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        105deg,
+        transparent 0%,
+        rgba(124, 156, 255, 0.07) 45%,
+        transparent 55%
+      );
+      transform: translateX(-100%);
+      animation: panelShine 7s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes panelShine {
+      0%, 100% { transform: translateX(-100%); }
+      40% { transform: translateX(120%); }
+      100% { transform: translateX(120%); }
+    }
+
+    .explain-panel h2 {
+      margin: 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+    }
+
+    .solution-callout {
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(124, 156, 255, 0.35);
+      background: rgba(8, 14, 28, 0.65);
+      font-size: 13px;
+      line-height: 1.5;
+      color: #c8d4f8;
+    }
+
+    .solution-callout strong {
+      color: #fff;
+      font-weight: 650;
+    }
+
+    .diagram-caption {
+      margin: -4px 0 0 0;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .solution-details {
+      margin: 0;
+      border: 1px solid rgba(42, 58, 92, 0.9);
+      border-radius: 8px;
+      background: rgba(8, 12, 24, 0.5);
+      padding: 0;
+    }
+
+    .solution-details summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      user-select: none;
+    }
+
+    .solution-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .solution-details .solution-details-body {
+      padding: 0 12px 12px 12px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .solution-details .solution-details-body p {
+      margin: 0 0 10px 0;
+    }
+
+    .solution-details .solution-details-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    .eq {
+      display: block;
+      margin: 6px 0;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+      font-size: 11px;
+      color: #b8c8ff;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .diagram {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      background: radial-gradient(circle at 40% 35%, #1a2540 0%, #0c101c 70%);
+    }
+
+    .diag-line {
+      stroke: rgba(124, 156, 255, 0.45);
+      stroke-width: 2;
+      stroke-dasharray: 6 10;
+      animation: dashFlow 2.4s linear infinite;
+    }
+
+    .diag-line:nth-of-type(1) { animation-duration: 2.8s; opacity: 0.85; }
+    .diag-line:nth-of-type(2) { animation-duration: 2.2s; opacity: 0.95; }
+    .diag-line:nth-of-type(3) { animation-duration: 3.1s; opacity: 0.75; }
+
+    .diag-mass {
+      animation: massBob 2.8s ease-in-out infinite;
+    }
+
+    .diag-mass:nth-child(2) { animation-delay: -0.9s; }
+    .diag-mass:nth-child(3) { animation-delay: -1.8s; }
+
+    .diag-label {
+      fill: rgba(230, 236, 255, 0.82);
+      font-size: 11px;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    .tour {
+      margin-top: auto;
+      border-top: 1px solid rgba(42, 58, 92, 0.7);
+      padding-top: 12px;
+    }
+
+    .tour-card {
+      min-height: 7.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tour-step {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: translateX(18px);
+      pointer-events: none;
+      transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .tour-step.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    .tour-step strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .tour-step span {
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .tour-step.active strong {
+      animation: stepTitleIn 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .tour-step.active span {
+      animation: stepBodyIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+    }
+
+    @keyframes stepTitleIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes stepBodyIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tour-progress {
+      margin-top: 10px;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(42, 58, 92, 0.65);
+      overflow: hidden;
+    }
+
+    .tour-progress-bar {
+      height: 100%;
+      width: 100%;
+      transform-origin: left center;
+      transform: scaleX(0);
+      background: linear-gradient(90deg, #5c7cff, #69f0ae);
+      border-radius: 2px;
+      will-change: transform;
+    }
+
+    .tour-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .tour-controls button {
+      font: inherit;
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #121a2e;
+      color: #e6ecff;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    }
+
+    .tour-controls button:hover {
+      background: #1a2440;
+      border-color: var(--accent);
+    }
+
+    .tour-controls button:active {
+      transform: scale(0.97);
+    }
+
+    .dots {
+      display: flex;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .dots button {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border-radius: 50%;
+      border: none;
+      background: #3a4a70;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .dots button[aria-current="true"] {
+      background: var(--accent);
+      transform: scale(1.25);
+      box-shadow: 0 0 10px rgba(124, 156, 255, 0.6);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      animation:
+        panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both,
+        canvasGlow 5.5s ease-in-out 0.5s infinite alternate;
+    }
+
+    @keyframes canvasGlow {
+      0% {
+        box-shadow:
+          0 0 0 1px rgba(42, 58, 92, 0.9),
+          0 0 24px rgba(70, 110, 220, 0.07);
+      }
+      100% {
+        box-shadow:
+          0 0 0 1px rgba(100, 140, 255, 0.45),
+          0 0 40px rgba(80, 160, 255, 0.11);
+      }
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 10;
+      display: block;
+      vertical-align: middle;
+      background: radial-gradient(circle at center, #10182c 0%, #06080f 78%);
+    }
+
+    .canvas-overlay {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
+      animation: vignetteBreath 5s ease-in-out infinite;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      animation: legendIn 0.55s ease forwards;
+    }
+
+    .legend-item:nth-child(1) { animation-delay: 0.35s; }
+    .legend-item:nth-child(2) { animation-delay: 0.5s; }
+    .legend-item:nth-child(3) { animation-delay: 0.65s; }
+    .legend-item:nth-child(4) { animation-delay: 0.8s; }
+
+    .swatch {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    @keyframes titleShimmer {
+      0%, 100% { background-position: 0% center; }
+      50% { background-position: 100% center; }
+    }
+
+    @keyframes fadeRise {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.85; }
+    }
+
+    @keyframes panelIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes dashFlow {
+      to {
+        stroke-dashoffset: -32;
+      }
+    }
+
+    @keyframes massBob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    @keyframes legendIn {
+      from {
+        opacity: 0;
+        transform: translateX(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes vignetteBreath {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      .tour-step {
+        transition: none;
+      }
+
+      .tour-step.active strong,
+      .tour-step.active span {
+        animation: none !important;
+      }
+
+      .canvas-wrap {
+        animation:
+          panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header-row">
+      <div>
+        <h1>Three-body problem — computational solution</h1>
+        <p class="tagline">
+          The trajectory you see is a numerical solution: Newtonian gravity in the plane, stepped in time on the
+          server and streamed here for visualization — not a closed-form formula (those are rare for n = 3).
+        </p>
+      </div>
+      <div class="status" id="connStatus" aria-live="polite">
+        <span class="status-dot" id="connDot" aria-hidden="true"></span>
+        <span id="connLabel">Connecting…</span>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <aside class="explain-panel" aria-label="Explanation of the simulation">
+        <h2>What “the solution” is on this page</h2>
+        <p class="solution-callout">
+          <strong>Solution here</strong> means the time-evolving positions of three masses that satisfy Newton’s
+          laws, computed approximately: we cannot write one neat function r(t) for arbitrary three-body setups, so
+          the program <strong>integrates the equations of motion</strong> step by step. The canvas is that approximate
+          trajectory over time.
+        </p>
+        <svg class="diagram" viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three masses with attraction lines">
+          <title>Three masses pull on each other</title>
+          <line class="diag-line" x1="130" y1="38" x2="52" y2="152" />
+          <line class="diag-line" x1="130" y1="38" x2="208" y2="152" />
+          <line class="diag-line" x1="52" y1="152" x2="208" y2="152" />
+
+          <g class="diag-mass">
+            <circle cx="130" cy="38" r="16" fill="#ff5252" opacity="0.95" />
+          </g>
+          <g class="diag-mass">
+            <circle cx="52" cy="152" r="16" fill="#40c4ff" opacity="0.95" />
+          </g>
+          <g class="diag-mass">
+            <circle cx="208" cy="152" r="16" fill="#b2ff59" opacity="0.95" />
+          </g>
+
+          <text class="diag-label" x="130" y="28" text-anchor="middle">m₁</text>
+          <text class="diag-label" x="52" y="182" text-anchor="middle">m₂</text>
+          <text class="diag-label" x="208" y="182" text-anchor="middle">m₃</text>
+        </svg>
+        <p class="diagram-caption">
+          Schematic: every pair attracts. The actual run uses the same pairwise idea in 2D with masses and speeds you
+          can change only in code — the UI explains the method, not a parameter panel.
+        </p>
+
+        <details class="solution-details">
+          <summary>Model &amp; integration (matches the server)</summary>
+          <div class="solution-details-body">
+            <p>
+              State for each body <em>i</em>: position (x, y) and velocity (v<sub>x</sub>, v<sub>y</sub>). Constants in
+              code use G = 1 and a small softening ε so accelerations stay finite when two points get very close.
+            </p>
+            <p>Acceleration of body <em>i</em> from body <em>j</em> (i ≠ j):</p>
+            <span class="eq">a<sub>i←j</sub> = G · m<sub>j</sub> · (r<sub>j</sub> − r<sub>i</sub>) / (‖r<sub>j</sub> − r<sub>i</sub>‖² + ε)<sup>3/2</sup></span>
+            <p>Sum the contributions from both other bodies, then each step:</p>
+            <span class="eq">v ← v + a·Δt<br />x ← x + v·Δt</span>
+            <p>
+              Several small Δt steps are taken between frames you receive over the WebSocket, so the orbit shape is a
+              faithful sample of that discrete solution, not an artistic sketch.
+            </p>
+          </div>
+        </details>
+
+        <div class="tour">
+          <p class="diagram-caption" style="margin-bottom: 8px; opacity: 0.95">
+            <strong style="color: #fff">Guided tour</strong> — step through how this connects to the picture on the right.
+          </p>
+          <div class="tour-card" id="tourCard"></div>
+          <div class="tour-controls">
+            <button type="button" id="tourPrev" aria-label="Previous explanation step">Back</button>
+            <button type="button" id="tourNext" aria-label="Next explanation step">Next</button>
+            <button type="button" id="tourReplay">Replay tour</button>
+            <div class="dots" id="tourDots" role="tablist" aria-label="Tour steps"></div>
+          </div>
+          <div class="tour-progress" aria-hidden="true">
+            <div class="tour-progress-bar" id="tourProgressBar"></div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="canvas-wrap" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
+        <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
+        <div class="canvas-overlay" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <div class="legend" aria-label="How to read the solution on the canvas">
+      <span class="legend-item">
+        <span class="swatch" style="background:#ff5252;color:#ff5252"></span>
+        Each color is one mass; bright disks are its current place in the <strong>numerical solution</strong>.
+      </span>
+      <span class="legend-item">
+        <span class="swatch" style="background:#40c4ff;color:#40c4ff"></span>
+        Trails are recent past positions — a visible history of the integrated trajectory.
+      </span>
+      <span class="legend-item">
+        <span class="swatch" style="background:#b2ff59;color:#b2ff59"></span>
+        Chaos: for three bodies, tiny changes in start state can produce wildly different paths (same equations, different outcome).
+      </span>
+      <span class="legend-item">
+        <span class="swatch" style="background:#a88cff;color:#a88cff"></span>
+        Equations are integrated in Python; the browser only displays the resulting positions (see tour below).
+      </span>
+    </div>
+  </div>
+
+  <script>
+    const TOUR_STEPS = [
+      {
+        title: "What counts as the “solution”?",
+        body: "In classical mechanics the three-body problem means: find how three masses move under mutual gravity from a given start. For two bodies we get ellipses and hyperbolas in closed form. For three, Poincaré showed there is no general explicit formula like that. The solution in this demo is a computed orbit: positions over time from fixed rules + initial data.",
+      },
+      {
+        title: "Equations we enforce",
+        body: "The server uses inverse-square gravity in 2D: each mass pulls every other along their separation, strength proportional to mass and 1 divided by distance squared (with tiny numerical softening). That defines accelerations. Same idea as the sketch with m1, m2, m3 above.",
+      },
+      {
+        title: "Numerical integration",
+        body: "We advance velocity and position in small time steps Δt (explicit stepping in the code). That turns the continuous problem into a discrete one we can compute. Smaller Δt usually tracks the ideal continuous solution more closely, at more CPU cost.",
+      },
+      {
+        title: "Why it looks messy",
+        body: "Many three-body configurations are chaotic: long-term motion is sensitive to starting conditions. The tangled trails are still a deterministic solution of the model — not random noise — but predicting them far ahead needs simulation.",
+      },
+      {
+        title: "What the server sends",
+        body: "After several internal Δt steps, the program sends the three positions as JSON over a WebSocket many times per second. That is a sampled version of the numerical trajectory, not an analytic formula evaluated in your browser.",
+      },
+      {
+        title: "How you should read the picture",
+        body: "Dots = current solution point for each mass. Colored trails = where that mass has been recently along the integrated path. Three fixed colors map to three bodies so you can tell the histories apart.",
+      },
+      {
+        title: "Limits of this demo",
+        body: "Units and G are chosen for visibility, not the solar system. Collisions are softened, not hard spheres. What you see is one initial condition; change masses or starts in code to explore other solutions.",
+      },
+    ];
+
+    const canvas = document.getElementById("sim");
+    const ctx = canvas.getContext("2d");
+    let bodies = [];
+    let trails = [[], [], []];
+    let tourIndex = 0;
+    let tourTimer = null;
+
+    const tourCard = document.getElementById("tourCard");
+    const tourDots = document.getElementById("tourDots");
+    const tourProgressBar = document.getElementById("tourProgressBar");
+    const connStatus = document.getElementById("connStatus");
+    const connDot = document.getElementById("connDot");
+    const connLabel = document.getElementById("connLabel");
+
+    const TOUR_STEP_MS = 7000;
+    let tourStepStarted = performance.now();
+
+    function setConnectionLive(live) {
+      connDot.classList.toggle("live", live);
+      connStatus.classList.toggle("live-pulse", live);
+      connLabel.textContent = live ? "Live stream" : "Disconnected — retrying…";
+    }
+
+    function worldToScreen(x, y) {
+      const scale = 210;
+      return {
+        x: canvas.width / 2 + x * scale,
+        y: canvas.height / 2 - y * scale,
+      };
+    }
+
+    function renderTourDOM() {
+      tourCard.innerHTML = "";
+      TOUR_STEPS.forEach((step, i) => {
+        const el = document.createElement("div");
+        el.className = "tour-step" + (i === tourIndex ? " active" : "");
+        el.setAttribute("role", "tabpanel");
+        const strong = document.createElement("strong");
+        strong.textContent = step.title;
+        const span = document.createElement("span");
+        span.textContent = step.body;
+        el.appendChild(strong);
+        el.appendChild(span);
+        tourCard.appendChild(el);
+      });
+
+      tourDots.innerHTML = "";
+      TOUR_STEPS.forEach((_, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("aria-label", "Go to step " + (i + 1));
+        b.setAttribute("aria-current", i === tourIndex ? "true" : "false");
+        b.addEventListener("click", () => {
+          tourIndex = i;
+          renderTourDOM();
+          scheduleTourAdvance(true);
+        });
+        tourDots.appendChild(b);
+      });
+      tourStepStarted = performance.now();
+    }
+
+    function scheduleTourAdvance(reset) {
+      if (tourTimer) clearInterval(tourTimer);
+      if (reset) {
+        tourTimer = setInterval(() => {
+          tourIndex = (tourIndex + 1) % TOUR_STEPS.length;
+          renderTourDOM();
+        }, TOUR_STEP_MS);
+      }
+    }
+
+    document.getElementById("tourPrev").addEventListener("click", () => {
+      tourIndex = (tourIndex - 1 + TOUR_STEPS.length) % TOUR_STEPS.length;
+      renderTourDOM();
+      scheduleTourAdvance(true);
+    });
+
+    document.getElementById("tourNext").addEventListener("click", () => {
+      tourIndex = (tourIndex + 1) % TOUR_STEPS.length;
+      renderTourDOM();
+      scheduleTourAdvance(true);
+    });
+
+    document.getElementById("tourReplay").addEventListener("click", () => {
+      tourIndex = 0;
+      renderTourDOM();
+      scheduleTourAdvance(true);
+    });
+
+    renderTourDOM();
+    scheduleTourAdvance(true);
+
+    function tickTourProgress() {
+      const t = Math.min(1, (performance.now() - tourStepStarted) / TOUR_STEP_MS);
+      tourProgressBar.style.transform = "scaleX(" + t + ")";
+      requestAnimationFrame(tickTourProgress);
+    }
+
+    tickTourProgress();
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const STAR_COUNT = reduceMotion ? 0 : 90;
+    const stars = [];
+    for (let s = 0; s < STAR_COUNT; s++) {
+      stars.push({
+        x: Math.random(),
+        y: Math.random(),
+        r: 0.3 + Math.random() * 1.2,
+        ph: Math.random() * Math.PI * 2,
+        sp: 0.5 + Math.random(),
+      });
+    }
+
+    let displayXY = [];
+    const MOTION_SMOOTH = reduceMotion ? 1 : 0.18;
+    let pulseT = 0;
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pulseT += 0.04;
+
+      const twBase = pulseT * 1.2;
+      stars.forEach((st) => {
+        const a = 0.15 + 0.55 * (0.5 + 0.5 * Math.sin(twBase * st.sp + st.ph));
+        ctx.fillStyle = "rgba(230, 236, 255, " + a.toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.arc(st.x * canvas.width, st.y * canvas.height, st.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const trailColors = [
+        [255, 138, 128],
+        [128, 216, 255],
+        [204, 255, 144],
+      ];
+
+      for (let i = 0; i < trails.length; i++) {
+        const tr = trails[i];
+        if (tr.length < 2) continue;
+        const rgb = trailColors[i];
+        for (let p = 1; p < tr.length; p++) {
+          const t = p / (tr.length - 1);
+          const alpha = 0.08 + t * 0.82;
+          ctx.beginPath();
+          ctx.lineWidth = 1.45;
+          ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha.toFixed(3) + ")";
+          ctx.moveTo(tr[p - 1].x, tr[p - 1].y);
+          ctx.lineTo(tr[p].x, tr[p].y);
+          ctx.stroke();
+        }
+      }
+
+      while (displayXY.length < bodies.length) {
+        const b = bodies[displayXY.length];
+        displayXY.push({ x: b.x, y: b.y });
+      }
+      if (displayXY.length > bodies.length) {
+        displayXY.length = bodies.length;
+      }
+
+      bodies.forEach((b, i) => {
+        displayXY[i].x += (b.x - displayXY[i].x) * MOTION_SMOOTH;
+        displayXY[i].y += (b.y - displayXY[i].y) * MOTION_SMOOTH;
+      });
+
+      bodies.forEach((b, i) => {
+        const px = displayXY[i].x;
+        const py = displayXY[i].y;
+        const p = worldToScreen(px, py);
+        const baseR = 8 + b.m * 2;
+        const glow = baseR + 4 + Math.sin(pulseT + i * 1.2) * 2;
+        const g = ctx.createRadialGradient(p.x, p.y, baseR * 0.2, p.x, p.y, glow);
+        const colors = [
+          ["rgba(255,82,82,0.35)", "#ff5252"],
+          ["rgba(64,196,255,0.35)", "#40c4ff"],
+          ["rgba(178,255,89,0.35)", "#b2ff59"],
+        ][i % 3];
+        g.addColorStop(0, colors[1]);
+        g.addColorStop(0.55, colors[0]);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+
+        ctx.beginPath();
+        ctx.fillStyle = g;
+        ctx.arc(p.x, p.y, glow, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.fillStyle = colors[1];
+        ctx.arc(p.x, p.y, baseR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function loop() {
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function connect() {
+      let url;
+      if (typeof window.__WS_BASE__ === "string" && window.__WS_BASE__.length > 0) {
+        let base = window.__WS_BASE__.replace(/\/$/, "");
+        if (base.endsWith("/ws")) base = base.slice(0, -3).replace(/\/$/, "");
+        url = base + "/ws";
+      } else {
+        const proto = location.protocol === "https:" ? "wss" : "ws";
+        url = proto + "://" + location.host + "/ws";
+      }
+      const ws = new WebSocket(url);
+
+      ws.onopen = () => setConnectionLive(true);
+      ws.onclose = () => {
+        setConnectionLive(false);
+        setTimeout(connect, 800);
+      };
+
+      ws.onmessage = (ev) => {
+        let data;
+        try {
+          data = JSON.parse(ev.data);
+        } catch (e) {
+          return;
+        }
+        bodies = data.bodies || [];
+        bodies.forEach((b, i) => {
+          const p = worldToScreen(b.x, b.y);
+          trails[i].push(p);
+          if (trails[i].length > 500) trails[i].shift();
+        });
+      };
+    }
+
+    connect();
+    loop();
+  </script>
+</body>
+</html>

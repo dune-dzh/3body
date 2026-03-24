@@ -1,0 +1,2 @@
+# Shell installers must keep LF so shebang and bash work on Linux/macOS.
+install.sh text eol=lf

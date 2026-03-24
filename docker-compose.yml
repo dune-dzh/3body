@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  threebody:
+    build: .
+    # Compose reads an optional project .env for ${...} substitution when the file exists.
+    # No env_file: line — missing .env does not break `docker compose up`.
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
+      PUBLIC_PORT: ${PUBLIC_PORT:-8000}
+      PUBLIC_TLS: ${PUBLIC_TLS:-0}
+      PUBLIC_WS_URL: ${PUBLIC_WS_URL:-}
+    ports:
+      - "${PUBLIC_PORT:-8000}:8000"
