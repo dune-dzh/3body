@@ -800,11 +800,35 @@
 
     /** Same model as the server — runs in the browser when WebSocket data is missing so the right-hand sim never “dies” after one frame. */
     const DEMO_DT = 0.01;
-    let demoBodies = [
+    const DEMO_BODIES_INIT = [
       { x: -0.8, y: 0, vx: 0, vy: -0.35, m: 1 },
       { x: 0.8, y: 0, vx: 0, vy: 0.35, m: 1 },
       { x: 0, y: 1.1, vx: 0.45, vy: 0, m: 1 },
     ];
+
+    let demoBodies = DEMO_BODIES_INIT.map(function (b) {
+      return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
+    });
+
+    const DEMO_RESET_LIMIT = 3.5;
+
+    function resetDemoSimulation() {
+      demoBodies = DEMO_BODIES_INIT.map(function (b) {
+        return { x: b.x, y: b.y, vx: b.vx, vy: b.vy, m: b.m };
+      });
+      bodies = [];
+      trails = [[], [], []];
+      displayXY = [];
+    }
+
+    function bodyOutOfView(b) {
+      return (
+        !Number.isFinite(b.x) ||
+        !Number.isFinite(b.y) ||
+        Math.abs(b.x) > DEMO_RESET_LIMIT ||
+        Math.abs(b.y) > DEMO_RESET_LIMIT
+      );
+    }
 
     function stepDemoBodies(arr, dt) {
       const G0 = 1;
@@ -1023,6 +1047,12 @@
           trails[i].push(p);
           if (trails[i].length > 500) trails[i].shift();
         });
+      }
+
+      // If the simulation flies off-screen (common with chaotic three-body or numerical blow-ups),
+      // reset so the canvas keeps looping visibly.
+      if (bodies.length >= 3 && bodies.some(bodyOutOfView)) {
+        resetDemoSimulation();
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
