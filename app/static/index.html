@@ -96,21 +96,6 @@
       vertical-align: bottom;
     }
 
-    @keyframes statusWrapReplay {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .status-wrap.status-replay {
-      animation: statusWrapReplay 0.8s ease-out 0.2s both;
-    }
-
     .status {
       display: inline-block;
       font-size: 12px;
@@ -886,10 +871,6 @@
       .sim-aside {
         overflow-y: visible;
       }
-
-      .status-wrap.status-replay {
-        animation: none !important;
-      }
     }
   </style>
 </head>
@@ -994,65 +975,36 @@
         </div>
 
         <section class="sim-aside" aria-labelledby="sim-aside-heading">
-          <h3 id="sim-aside-heading">Behind this run</h3>
+          <h3 id="sim-aside-heading">This run (model &amp; numerics)</h3>
           <p class="sim-aside-lede">
-            Short answers to “what am I seeing?” and “how is it produced?” — without pretending a bullet list is a
-            physics lesson. For equations and the same model as the server, use
-            <strong style="color: #e6ecff; font-weight: 650">Model &amp; integration</strong> in the left column.
+            Same physical setup as <strong style="color: #e6ecff; font-weight: 650">Model &amp; integration</strong> on
+            the left: mutual Newtonian gravity in the plane, inverse-square law, integrated in time in
+            <code style="font-size: 11px; color: #b8c8ff">app/main.py</code>. What follows is the substance of that run,
+            not commentary on how the page is drawn.
           </p>
 
-          <p class="sim-aside-subhead">What you’re watching</p>
+          <p class="sim-aside-subhead">Units and regularization</p>
           <p class="sim-aside-prose">
-            The curves are a <strong style="color: #c8d4f8; font-weight: 650">real-time numerical orbit</strong>: the
-            server integrates gravity in the plane and streams positions over a WebSocket. This page draws samples as it
-            receives them — not a pre-rendered loop. If the stream hiccups, the picture reflects that; if it runs, the mess
-            on screen is still the same equations stepping forward in time.
+            <strong style="color: #c8d4f8; font-weight: 650">G = 1</strong> in code units (comfortable magnification, not
+            physical SI).
+            <strong style="color: #c8d4f8; font-weight: 650">Softening ε = 10<sup>−2</sup></strong> is added inside
+            squared separations ‖r<sub>j</sub> − r<sub>i</sub>‖² so pairwise accelerations stay bounded when two bodies
+            pass very close — a standard regularization in small-N demos, not collisional physics.
           </p>
 
-          <p class="sim-aside-subhead">Why it’s tuned for the screen</p>
+          <p class="sim-aside-subhead">Time stepping</p>
           <p class="sim-aside-prose">
-            Constants are chosen for visibility, not the solar system.
-            <strong style="color: #c8d4f8; font-weight: 650">G = 1</strong> in code units.
-            A small <strong style="color: #c8d4f8; font-weight: 650">softening ε = 10<sup>−2</sup></strong> keeps
-            accelerations from exploding when two bodies skim past each other — standard trick in N-body demos so the
-            timestep can stay reasonable.
+            Each integration substep uses <strong style="color: #c8d4f8; font-weight: 650">Δt = 0.01</strong>. Between
+            successive state outputs in the running program, <strong>four</strong> such substeps are applied, so the
+            advanced state corresponds to <strong>0.04</strong> units of simulation time per output. The integrator is
+            explicit and semi-implicit in the usual sense: accelerations at the beginning of a substep, then velocity and
+            position updates in sequence (Euler–Cromer–style in source). It favors simplicity and transparency over strict
+            long-time energy conservation.
           </p>
-
-          <p class="sim-aside-subhead">How often things update</p>
-          <ul class="sim-aside-bullets">
-            <li>
-              <strong>Integration:</strong> each substep uses
-              <strong>Δt = 0.01</strong>. The server does <strong>four</strong> substeps between messages, so simulation
-              time advances <strong>0.04</strong> per network frame.
-            </li>
-            <li>
-              <strong>Updates to you:</strong> about <strong>60 frames per second</strong> of JSON like
-              <code style="font-size: 11px; color: #b8c8ff">{ "bodies": [ { "x", "y", "m" }, … ] }</code> — three bodies,
-              same order as <strong>red → cyan → lime</strong> on the canvas.
-            </li>
-            <li>
-              <strong>Integrator style:</strong> accelerations from current positions, then velocity and position updates
-              in order (Euler–Cromer–style in code). It’s easy to read in source and cheap to run; it is not built to
-              preserve energy perfectly over long runs.
-            </li>
-          </ul>
-
-          <p class="sim-aside-subhead">What the browser adds (cosmetic only)</p>
-          <ul class="sim-aside-bullets">
-            <li>
-              <strong>Trails:</strong> roughly the last <strong>500</strong> plotted points per body, then older points
-              are dropped so memory stays flat.
-            </li>
-            <li>
-              <strong>Disk motion:</strong> dots <em>ease</em> toward each new server position for a calmer look. If the
-              OS is set to <strong>reduce motion</strong>, that easing is turned off and positions snap to each sample —
-              closer to raw data, still not “more accurate physics.”
-            </li>
-          </ul>
 
           <p class="diagram-caption" style="margin: 0">
-            Starting state for this demo (edit <code style="font-size: 10px; color: #8fa8e8">initial_bodies()</code> in
-            Python to experiment):
+            Initial data in <code style="font-size: 10px; color: #8fa8e8">initial_bodies()</code> (three equal masses;
+            edit in Python to explore other conditions):
           </p>
           <div class="sim-ic-table-wrap">
             <table class="sim-ic-table">
@@ -1096,8 +1048,7 @@
             <div class="solution-details-body">
               <p>
                 Three-body motion is often <strong>chaotic</strong>: trajectories stay deterministic, but tiny changes in
-                initial data or in the numerics can diverge noticeably over time. That is expected for this model class, not
-                a sign that the WebSocket is corrupting data.
+                initial data or in the numerics can diverge noticeably over time. That is expected for this model class.
               </p>
               <p>
                 In an ideal continuous system, energy and angular momentum would be fixed along a solution. Discrete
@@ -1193,25 +1144,34 @@
 
     const STATUS_REPLAY_MS = 15000;
     function triggerStatusReplay() {
-      if (!connStatusWrap) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      connStatusWrap.classList.remove("status-replay");
-      void connStatusWrap.offsetWidth;
-      connStatusWrap.classList.add("status-replay");
-    }
-    if (connStatusWrap) {
-      connStatusWrap.addEventListener("animationend", function (ev) {
-        if (ev.target !== connStatusWrap) return;
-        if (ev.animationName !== "statusWrapReplay") return;
-        connStatusWrap.classList.remove("status-replay");
+      var w = connStatusWrap || document.getElementById("connStatusWrap");
+      if (!w) return;
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var sec = reduced ? 0.18 : 0.75;
+      w.style.transition = "none";
+      w.style.setProperty("opacity", "0", "important");
+      w.style.setProperty("transform", "translateY(14px)", "important");
+      void w.offsetHeight;
+      requestAnimationFrame(function () {
+        w.style.transition =
+          "opacity " + sec + "s ease-out, transform " + sec + "s ease-out";
+        requestAnimationFrame(function () {
+          w.style.setProperty("opacity", "1", "important");
+          w.style.setProperty("transform", "translateY(0)", "important");
+        });
       });
-      requestAnimationFrame(triggerStatusReplay);
-      setInterval(function () {
-        try {
-          triggerStatusReplay();
-        } catch (ignore) {}
-      }, STATUS_REPLAY_MS);
+      window.setTimeout(function () {
+        w.style.removeProperty("transition");
+        w.style.removeProperty("opacity");
+        w.style.removeProperty("transform");
+      }, Math.ceil(sec * 1000) + 120);
     }
+    requestAnimationFrame(triggerStatusReplay);
+    setInterval(function () {
+      try {
+        triggerStatusReplay();
+      } catch (ignore) {}
+    }, STATUS_REPLAY_MS);
 
     const canvas = document.getElementById("sim");
     const ctx = canvas.getContext("2d");
