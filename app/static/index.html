@@ -454,20 +454,32 @@
       box-shadow: 0 0 10px rgba(124, 156, 255, 0.6);
     }
 
-    /*
-     * Sim card: intro once via CSS; all repeating motion is requestAnimationFrame
-     * (see canvasCardAmbientLoop) so it cannot get “stuck” at one iteration.
-     */
+    /* Original layout: one `.canvas-wrap`, slide-in once + `canvasGlow` loops forever (longhand keeps both animations). */
     .canvas-wrap {
       position: relative;
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border);
+      animation-name: panelIn, canvasGlow;
+      animation-duration: 0.85s, 8s;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease-in-out;
+      animation-delay: 0.08s, 0.5s;
+      animation-iteration-count: 1, infinite;
+      animation-direction: normal, alternate;
+      animation-fill-mode: both, none;
     }
 
-    /* Same panel intro as before; `infinite` repeats the keyframes (jump from end → start each cycle). */
-    .canvas-panel-in {
-      animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s infinite both;
+    @keyframes canvasGlow {
+      0% {
+        box-shadow:
+          0 0 0 1px rgba(42, 58, 92, 0.9),
+          0 0 20px rgba(70, 110, 220, 0.06);
+      }
+      100% {
+        box-shadow:
+          0 0 0 1px rgba(120, 160, 255, 0.55),
+          0 0 48px rgba(80, 160, 255, 0.16);
+      }
     }
 
     .canvas-sway {
@@ -598,9 +610,9 @@
 
     /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay),
-      *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
-      *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
+      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay),
+      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
+      *:not(.canvas-wrap):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -643,9 +655,14 @@
       .legend-item:nth-child(3) { animation-delay: 0.65s !important; }
       .legend-item:nth-child(4) { animation-delay: 0.8s !important; }
 
-      .canvas-panel-in {
-        animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both !important;
+      .canvas-wrap {
+        animation-name: panelIn !important;
+        animation-duration: 0.85s !important;
+        animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+        animation-delay: 0.08s !important;
         animation-iteration-count: 1 !important;
+        animation-direction: normal !important;
+        animation-fill-mode: both !important;
       }
     }
   </style>
@@ -738,11 +755,9 @@
       </aside>
 
       <div class="canvas-wrap" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
-        <div class="canvas-panel-in">
-          <div class="canvas-sway">
-            <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
-            <div class="canvas-overlay" aria-hidden="true"></div>
-          </div>
+        <div class="canvas-sway">
+          <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
+          <div class="canvas-overlay" aria-hidden="true"></div>
         </div>
       </div>
     </div>
@@ -1009,15 +1024,7 @@
         const sc = 1 + amp * (0.012 * Math.sin(t * 0.27) + 0.008 * Math.sin(t * 0.13));
         sway.style.transform = "rotate(" + rot + "deg) scale(" + sc + ")";
 
-        const phase = 0.5 - 0.5 * Math.cos(t * 0.38 * Math.PI * 2);
-        const glowPx = 22 + phase * 32;
-        const a1 = 0.42 + phase * 0.38;
-        wrap.style.boxShadow =
-          "0 0 0 1px rgba(96, 136, 255, " +
-          a1 +
-          "), 0 0 " +
-          glowPx +
-          "px rgba(72, 140, 255, 0.18)";
+        /* Border glow: leave to CSS `canvasGlow` on `.canvas-wrap` (inline box-shadow was cancelling the repeat). */
 
         const bri = 1 + amp * 0.055 * Math.sin(t * 0.51);
         const sat = 1 + amp * 0.035 * Math.sin(t * 0.37);
