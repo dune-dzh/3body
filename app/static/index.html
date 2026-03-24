@@ -454,30 +454,19 @@
       box-shadow: 0 0 10px rgba(124, 156, 255, 0.6);
     }
 
-    /* Outer: looping glow only. Inner .canvas-panel-in: one-shot panelIn (separate layer fixes iteration bugs). */
+    /*
+     * Sim card: intro once via CSS; all repeating motion is requestAnimationFrame
+     * (see canvasCardAmbientLoop) so it cannot get “stuck” at one iteration.
+     */
     .canvas-wrap {
       position: relative;
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border);
-      animation: canvasGlow 8s ease-in-out 0.5s infinite alternate;
     }
 
     .canvas-panel-in {
       animation: panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
-    }
-
-    @keyframes canvasGlow {
-      0% {
-        box-shadow:
-          0 0 0 1px rgba(42, 58, 92, 0.9),
-          0 0 20px rgba(70, 110, 220, 0.06);
-      }
-      100% {
-        box-shadow:
-          0 0 0 1px rgba(120, 160, 255, 0.55),
-          0 0 48px rgba(80, 160, 255, 0.16);
-      }
     }
 
     .canvas-sway {
@@ -485,20 +474,6 @@
       display: block;
       transform-origin: center center;
       will-change: transform;
-      animation: canvasViewportRock 28s ease-in-out infinite;
-      animation-delay: 1s;
-    }
-
-    @keyframes canvasViewportRock {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      11% { transform: rotate(0.75deg) scale(1.005); }
-      24% { transform: rotate(-0.6deg) scale(1); }
-      37% { transform: rotate(0.95deg) scale(1.008); }
-      50% { transform: rotate(-0.5deg) scale(1.003); }
-      63% { transform: rotate(0.7deg) scale(1); }
-      76% { transform: rotate(-0.85deg) scale(1.006); }
-      90% { transform: rotate(0.45deg) scale(1.002); }
-      100% { transform: rotate(0deg) scale(1); }
     }
 
     canvas {
@@ -508,13 +483,6 @@
       display: block;
       vertical-align: middle;
       background: radial-gradient(circle at center, #10182c 0%, #06080f 78%);
-      animation: canvasCanvasTint 12s ease-in-out infinite;
-    }
-
-    @keyframes canvasCanvasTint {
-      0%, 100% { filter: brightness(1) saturate(1); }
-      33% { filter: brightness(1.06) saturate(1.04); }
-      66% { filter: brightness(0.98) saturate(1.02); }
     }
 
     .canvas-overlay {
@@ -523,7 +491,7 @@
       inset: 0;
       border-radius: 12px;
       box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
-      animation: vignetteBreath 6s ease-in-out infinite;
+      opacity: 0.85;
     }
 
     .legend {
@@ -627,43 +595,14 @@
       60%, 100% { opacity: 1; filter: brightness(1); }
     }
 
-    @keyframes vignetteBreath {
-      0%, 100% { opacity: 0.92; }
-      33% { opacity: 0.62; }
-      66% { opacity: 0.78; }
-    }
-
-    /*
-     * Shorter motion everywhere — except the simulation card, which keeps looping
-     * (otherwise OS “reduce motion” forces iteration-count: 1 on * and this panel looked “one-shot”).
-     */
+    /* Sim card motion: JavaScript (canvasCardAmbientLoop). This block still tones down the rest of the page. */
     @media (prefers-reduced-motion: reduce) {
-      @keyframes canvasViewportRockReduced {
-        0%, 100% { transform: rotate(0deg) scale(1); }
-        20% { transform: rotate(0.35deg) scale(1.002); }
-        45% { transform: rotate(-0.28deg) scale(1); }
-        70% { transform: rotate(0.4deg) scale(1.003); }
-        100% { transform: rotate(0deg) scale(1); }
-      }
-
       *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay),
       *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay)::before,
       *:not(.canvas-wrap):not(.canvas-panel-in):not(.canvas-sway):not(#sim):not(.canvas-overlay)::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
-      }
-
-      .canvas-sway {
-        animation-name: canvasViewportRockReduced;
-        animation-duration: 64s;
-        animation-iteration-count: infinite;
-      }
-
-      .canvas-wrap,
-      #sim,
-      .canvas-overlay {
-        animation-iteration-count: infinite !important;
       }
 
       .tour-step {
@@ -954,6 +893,54 @@
     }
 
     tickTourProgress();
+
+    /** Repeating motion for the sim card (CSS @keyframes were ending after one pass in some setups). */
+    function canvasCardAmbientLoop() {
+      const wrap = document.querySelector(".canvas-wrap");
+      const sway = document.querySelector(".canvas-sway");
+      const sim = document.getElementById("sim");
+      const overlay = document.querySelector(".canvas-overlay");
+      if (!wrap || !sway || !sim) return;
+
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const t0 = performance.now();
+
+      function frame(now) {
+        const t = (now - t0) / 1000;
+        const amp = mq.matches ? 0.3 : 1;
+
+        const rot =
+          amp *
+          (Math.sin(t * 0.31) * 0.85 +
+            Math.sin(t * 0.19) * 0.55 +
+            Math.sin(t * 0.47) * -0.4);
+        const sc = 1 + amp * (0.004 * Math.sin(t * 0.27) + 0.003 * Math.sin(t * 0.13));
+        sway.style.transform = "rotate(" + rot + "deg) scale(" + sc + ")";
+
+        const phase = 0.5 - 0.5 * Math.cos(t * 0.38 * Math.PI * 2);
+        const glowPx = 22 + phase * 32;
+        const a1 = 0.42 + phase * 0.38;
+        wrap.style.boxShadow =
+          "0 0 0 1px rgba(96, 136, 255, " +
+          a1 +
+          "), 0 0 " +
+          glowPx +
+          "px rgba(72, 140, 255, 0.18)";
+
+        const bri = 1 + amp * 0.055 * Math.sin(t * 0.51);
+        const sat = 1 + amp * 0.035 * Math.sin(t * 0.37);
+        sim.style.filter = "brightness(" + bri + ") saturate(" + sat + ")";
+
+        if (overlay) {
+          const ov = 0.68 + amp * 0.22 * (0.5 + 0.5 * Math.sin(t * 0.44 * Math.PI * 2));
+          overlay.style.opacity = String(ov);
+        }
+
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+    canvasCardAmbientLoop();
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
