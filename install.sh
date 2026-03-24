@@ -128,37 +128,95 @@ install_docker_compose_plugin_binary() {
   run_privileged sh -c "curl -fsSL '${url}' -o /usr/local/lib/docker/cli-plugins/docker-compose && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose"
 }
 
-ensure_docker_apt() {
+ensure_docker_distro_fallback() {
   export DEBIAN_FRONTEND=noninteractive
-  echo "Installing Docker via apt — sudo may be required."
+  echo "Fallback: Ubuntu universe docker.io + docker-compose-plugin or Compose binary."
+  run_privileged rm -f /etc/apt/sources.list.d/docker.sources /etc/apt/sources.list.d/docker.list 2>/dev/null || true
   run_privileged apt-get update -qq
-
   if [[ -r /etc/os-release ]]; then
     # shellcheck source=/dev/null
     . /etc/os-release
     if [[ "${ID:-}" == "ubuntu" ]]; then
-      echo "Ensuring Ubuntu 'universe' is enabled (docker-compose-plugin lives there on many mirrors, including ARM)."
       run_privileged apt-get install -y --no-install-recommends software-properties-common
       run_privileged add-apt-repository -y universe 2>/dev/null || true
       run_privileged apt-get update -qq
     fi
   fi
-
-  echo "Installing docker.io (engine)…"
-  run_privileged apt-get install -y --no-install-recommends docker.io
-
-  echo "Installing Compose v2 (apt plugin, or GitHub fallback)…"
+  run_privileged apt-get install -y --no-install-recommends docker.io || return 1
   if ! run_privileged apt-get install -y --no-install-recommends docker-compose-plugin; then
-    echo "Note: package docker-compose-plugin was not available from apt; using Compose release binary." >&2
-    if ! install_docker_compose_plugin_binary; then
-      echo "Error: could not install docker-compose-plugin or Compose binary." >&2
-      return 1
-    fi
+    install_docker_compose_plugin_binary || return 1
   fi
-
   if run_privileged systemctl is-system-running >/dev/null 2>&1; then
     run_privileged systemctl enable docker 2>/dev/null || true
     run_privileged systemctl start docker 2>/dev/null || true
+  fi
+}
+
+# Matches https://docs.docker.com/engine/install/ubuntu/ (and Debian variant of the same flow).
+ensure_docker_apt() {
+  export DEBIAN_FRONTEND=noninteractive
+  echo "Installing Docker Engine from Docker's official apt repository (see https://docs.docker.com/engine/install/ubuntu/)."
+
+  if [[ ! -r /etc/os-release ]]; then
+    echo "Error: /etc/os-release not found." >&2
+    return 1
+  fi
+  # shellcheck source=/dev/null
+  . /etc/os-release
+
+  local suite="" gpg_url="" uri=""
+  if [[ "${ID:-}" == "debian" ]]; then
+    gpg_url="https://download.docker.com/linux/debian/gpg"
+    uri="https://download.docker.com/linux/debian"
+    suite="${VERSION_CODENAME:-}"
+  else
+    gpg_url="https://download.docker.com/linux/ubuntu/gpg"
+    uri="https://download.docker.com/linux/ubuntu"
+    suite="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+  fi
+
+  if [[ -z "${suite}" ]]; then
+    echo "Error: could not detect suite codename for Docker apt (UBUNTU_CODENAME / VERSION_CODENAME)." >&2
+    return 1
+  fi
+
+  run_privileged apt-get update -qq
+  run_privileged apt-get install -y --no-install-recommends ca-certificates curl
+
+  echo "Removing unofficial/conflicting Docker packages if present (per Docker documentation)…"
+  run_privileged apt-get remove -y docker.io docker-compose docker-compose-v2 docker-doc podman-docker 2>/dev/null || true
+
+  run_privileged install -m 0755 -d /etc/apt/keyrings
+  run_privileged sh -c "curl -fsSL '${gpg_url}' -o /etc/apt/keyrings/docker.asc"
+  run_privileged chmod a+r /etc/apt/keyrings/docker.asc
+
+  run_privileged tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
+Types: deb
+URIs: ${uri}
+Suites: ${suite}
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+  if ! run_privileged apt-get update -qq; then
+    echo "Error: apt update failed after adding Docker's repository (check suite/codename vs https://docs.docker.com/engine/install/ubuntu/)." >&2
+    run_privileged rm -f /etc/apt/sources.list.d/docker.sources 2>/dev/null || true
+    ensure_docker_distro_fallback || return 1
+    return 0
+  fi
+
+  if run_privileged apt-get install -y --no-install-recommends \
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+    echo "Installed: docker-ce, docker-compose-plugin, and related packages from download.docker.com."
+  else
+    echo "Warning: official Docker packages failed (wrong suite, network, or conflicts). Trying distribution fallback." >&2
+    run_privileged rm -f /etc/apt/sources.list.d/docker.sources 2>/dev/null || true
+    ensure_docker_distro_fallback || return 1
+    return 0
+  fi
+
+  if run_privileged systemctl is-system-running >/dev/null 2>&1; then
+    run_privileged systemctl enable --now docker 2>/dev/null || true
   fi
 }
 
