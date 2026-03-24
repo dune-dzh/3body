@@ -459,22 +459,45 @@
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border);
+      /* panelIn runs once; canvasGlow loops forever */
       animation:
         panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both,
-        canvasGlow 5.5s ease-in-out 0.5s infinite alternate;
+        canvasGlow 8s ease-in-out 0.5s infinite alternate;
     }
 
     @keyframes canvasGlow {
       0% {
         box-shadow:
           0 0 0 1px rgba(42, 58, 92, 0.9),
-          0 0 24px rgba(70, 110, 220, 0.07);
+          0 0 20px rgba(70, 110, 220, 0.06);
       }
       100% {
         box-shadow:
-          0 0 0 1px rgba(100, 140, 255, 0.45),
-          0 0 40px rgba(80, 160, 255, 0.11);
+          0 0 0 1px rgba(120, 160, 255, 0.55),
+          0 0 48px rgba(80, 160, 255, 0.16);
       }
+    }
+
+    /* Inner wrapper: repeating “viewpoint” motion (parent panelIn stays one-shot). */
+    .canvas-sway {
+      position: relative;
+      display: block;
+      transform-origin: center center;
+      will-change: transform;
+      animation: canvasViewportRock 28s ease-in-out infinite;
+      animation-delay: 1s;
+    }
+
+    @keyframes canvasViewportRock {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      11% { transform: rotate(0.75deg) scale(1.005); }
+      24% { transform: rotate(-0.6deg) scale(1); }
+      37% { transform: rotate(0.95deg) scale(1.008); }
+      50% { transform: rotate(-0.5deg) scale(1.003); }
+      63% { transform: rotate(0.7deg) scale(1); }
+      76% { transform: rotate(-0.85deg) scale(1.006); }
+      90% { transform: rotate(0.45deg) scale(1.002); }
+      100% { transform: rotate(0deg) scale(1); }
     }
 
     canvas {
@@ -484,6 +507,13 @@
       display: block;
       vertical-align: middle;
       background: radial-gradient(circle at center, #10182c 0%, #06080f 78%);
+      animation: canvasCanvasTint 12s ease-in-out infinite;
+    }
+
+    @keyframes canvasCanvasTint {
+      0%, 100% { filter: brightness(1) saturate(1); }
+      33% { filter: brightness(1.06) saturate(1.04); }
+      66% { filter: brightness(0.98) saturate(1.02); }
     }
 
     .canvas-overlay {
@@ -492,7 +522,7 @@
       inset: 0;
       border-radius: 12px;
       box-shadow: inset 0 0 60px rgba(80, 120, 255, 0.06);
-      animation: vignetteBreath 5s ease-in-out infinite;
+      animation: vignetteBreath 6s ease-in-out infinite;
     }
 
     .legend {
@@ -597,8 +627,9 @@
     }
 
     @keyframes vignetteBreath {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.65; }
+      0%, 100% { opacity: 0.92; }
+      33% { opacity: 0.62; }
+      66% { opacity: 0.78; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -622,6 +653,15 @@
       .canvas-wrap {
         animation:
           panelIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+      }
+
+      .canvas-sway,
+      .canvas-sway canvas {
+        animation: none !important;
+      }
+
+      .canvas-overlay {
+        animation: none !important;
       }
 
       .diag-motion {
@@ -742,8 +782,10 @@
       </aside>
 
       <div class="canvas-wrap" role="img" aria-label="Simulation canvas: three colored masses and their path trails">
-        <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
-        <div class="canvas-overlay" aria-hidden="true"></div>
+        <div class="canvas-sway">
+          <canvas id="sim" width="1200" height="750" aria-hidden="true"></canvas>
+          <div class="canvas-overlay" aria-hidden="true"></div>
+        </div>
       </div>
     </div>
 
