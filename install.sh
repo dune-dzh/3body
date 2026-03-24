@@ -108,12 +108,54 @@ debian_like_distro() {
   return 1
 }
 
+install_docker_compose_plugin_binary() {
+  local arch=""
+  case "$(uname -m)" in
+    x86_64 | amd64) arch="x86_64" ;;
+    aarch64 | arm64) arch="aarch64" ;;
+    armv7l | armv6l) arch="armv7" ;;
+    *)
+      echo "Error: no apt docker-compose-plugin and unsupported arch for Compose binary: $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+  local ver="v2.29.7"
+  local url="https://github.com/docker/compose/releases/download/${ver}/docker-compose-linux-${arch}"
+  export DEBIAN_FRONTEND=noninteractive
+  echo "Installing Docker Compose plugin binary ${ver} for ${arch} (official release)."
+  run_privileged apt-get install -y --no-install-recommends curl ca-certificates
+  run_privileged mkdir -p /usr/local/lib/docker/cli-plugins
+  run_privileged sh -c "curl -fsSL '${url}' -o /usr/local/lib/docker/cli-plugins/docker-compose && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose"
+}
+
 ensure_docker_apt() {
   export DEBIAN_FRONTEND=noninteractive
-  echo "Installing Docker (docker.io + docker-compose-plugin) via apt — sudo may be required."
+  echo "Installing Docker via apt — sudo may be required."
   run_privileged apt-get update -qq
-  run_privileged apt-get install -y --no-install-recommends \
-    docker.io docker-compose-plugin
+
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    if [[ "${ID:-}" == "ubuntu" ]]; then
+      echo "Ensuring Ubuntu 'universe' is enabled (docker-compose-plugin lives there on many mirrors, including ARM)."
+      run_privileged apt-get install -y --no-install-recommends software-properties-common
+      run_privileged add-apt-repository -y universe 2>/dev/null || true
+      run_privileged apt-get update -qq
+    fi
+  fi
+
+  echo "Installing docker.io (engine)…"
+  run_privileged apt-get install -y --no-install-recommends docker.io
+
+  echo "Installing Compose v2 (apt plugin, or GitHub fallback)…"
+  if ! run_privileged apt-get install -y --no-install-recommends docker-compose-plugin; then
+    echo "Note: package docker-compose-plugin was not available from apt; using Compose release binary." >&2
+    if ! install_docker_compose_plugin_binary; then
+      echo "Error: could not install docker-compose-plugin or Compose binary." >&2
+      return 1
+    fi
+  fi
+
   if run_privileged systemctl is-system-running >/dev/null 2>&1; then
     run_privileged systemctl enable docker 2>/dev/null || true
     run_privileged systemctl start docker 2>/dev/null || true

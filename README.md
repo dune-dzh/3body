@@ -21,13 +21,30 @@ This repo targets **Linux / Ubuntu**. Run **`./install.sh`** to sync app files; 
 
 - **Docker Engine** and **`docker compose`** (v2 plugin), *or* **Python 3.9+** and `pip` for a local run (the container image uses Python 3.11).
 
-Manual Docker install (Ubuntu/Debian packages from the distribution):
+Manual Docker install on **Ubuntu** (including **ARM / `ubuntu-ports`**, e.g. Hetzner): the **`docker-compose-plugin`** package is usually in **`universe`**. If you see **`Unable to locate package docker-compose-plugin`**, enable **`universe`** first; **`docker.io`** and **`systemctl`** only work after the engine package actually installs.
 
 ```bash
+sudo apt update
+sudo apt install -y software-properties-common
+sudo add-apt-repository -y universe
 sudo apt update
 sudo apt install -y docker.io docker-compose-plugin
 sudo systemctl enable --now docker
 ```
+
+If **`docker-compose-plugin`** is still missing after **`universe`** is on, install the **Compose v2 plugin binary** into **`/usr/local/lib/docker/cli-plugins/`** (same version as **`install.sh`**). Use the file name that matches **`uname -m`**: **`aarch64`** → `docker-compose-linux-aarch64`, **`x86_64`** → `docker-compose-linux-x86_64`, **`armv7l`** → `docker-compose-linux-armv7`.
+
+```bash
+sudo apt install -y curl ca-certificates
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+# Example for 64-bit ARM (many Hetzner / ubuntu-port servers):
+sudo curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-aarch64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```
+
+For **amd64**, replace the URL basename with **`docker-compose-linux-x86_64`**. Other assets are listed on the [Compose releases](https://github.com/docker/compose/releases) page.
+
+**Debian** (no `universe`): install **`docker.io`**, then use the same **curl** plugin install if **`apt install docker-compose-plugin`** is unavailable.
 
 So **`docker info`** and **`docker compose version`** work **without** `sudo`, add your user to the `docker` group, then start a **new login session**:
 
@@ -142,6 +159,8 @@ uvicorn app.main:app --host 0.0.0.0 --port "${PUBLIC_PORT:-8000}" --reload
 
 - **Want a `.env` but don’t need the full installer**: copy **`cp .env.example .env`** and edit, or run **`./install.sh`** once (creates `.env` if missing).
 - **`--start` exits with code 1**: Docker is missing, **`docker compose`** is not installed, the daemon is stopped, or **`docker info`** fails (often: user not in **`docker`** group — see Prerequisites). The script prints a short reason on **stderr**.
+- **`E: Unable to locate package docker-compose-plugin`** (common on minimal Ubuntu ARM): run **`sudo add-apt-repository -y universe`**, **`sudo apt update`**, then install again—or use **`./install.sh --install-docker`**, which enables **`universe`** on Ubuntu and falls back to the official Compose binary if apt has no plugin.
+- **`Unit file docker.service does not exist`**: the **`docker.io`** package did not install (often because **`apt install`** failed on **`docker-compose-plugin`** before anything was installed). Install **`docker.io` alone first: **`sudo apt install -y docker.io`**, then add Compose as above.
 - **`apt install docker.io` succeeds but compose still fails**: run **`sudo systemctl enable --now docker`**, then **`sudo usermod -aG docker "$USER"`** and log out/in.
 - **WebSocket stays disconnected** from another device: check firewall for `${PUBLIC_PORT:-8000}`/TCP, ensure **`.env`** sets **`PUBLIC_HOST`** to the address clients use (run **`./install.sh --refresh-env`** after fixing the network), or open the UI with that same host.
 
